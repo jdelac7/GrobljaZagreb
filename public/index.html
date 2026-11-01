@@ -29,6 +29,8 @@
   --font: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sh: 132px;
   --topH: 130px;
+  --chrome-top: 0px;    /* extra room when the browser draws its toolbars over the page, set by script */
+  --chrome-bottom: 0px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -45,6 +47,12 @@ button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 :focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 [hidden] { display: none !important; }
+button, a, select, .chip, .row { touch-action: manipulation; }
+input, select, textarea { font-size: max(16px, 1em); }
+#problem { position: fixed; z-index: 1300; left: 12px; right: 12px; top: calc(max(10px, env(safe-area-inset-top)) + var(--chrome-top) + 8px); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--ink); color: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+#problem span { flex: 1; }
+#problem .btn { min-height: 40px; background: var(--primary); color: var(--primary-ink); }
+#debug { position: fixed; z-index: 2000; left: 4px; bottom: 4px; max-width: 96vw; margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.82); color: #7CFC9A; font: 11px/1.3 ui-monospace, monospace; white-space: pre-wrap; pointer-events: none; }
 .ic { display: inline-flex; width: 24px; height: 24px; flex: none; }
 .ic svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -52,7 +60,7 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .leaflet-tile-pane { filter: saturate(.8); }
 
 /* top: search + chips */
-#top { position: fixed; z-index: 1000; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: grid; gap: 8px; }
+#top { position: fixed; z-index: 1000; top: calc(max(10px, env(safe-area-inset-top)) + var(--chrome-top)); left: 10px; right: 10px; display: grid; gap: 8px; }
 .searchrow { display: flex; gap: 8px; }
 .pill {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 6px 0 16px;
@@ -72,7 +80,7 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
   font-weight: 600; font-size: .92rem; display: inline-flex; align-items: center; gap: 6px; max-width: 70vw;
 }
 .chip.on { background: var(--primary); color: var(--primary-ink); }
-select.chip { appearance: none; -webkit-appearance: none; padding-right: 30px; text-overflow: ellipsis;
+select.chip { font-size: 16px; /* iOS zooms the page when a smaller control gets focus, which can leave it stuck zoomed */ appearance: none; -webkit-appearance: none; padding-right: 30px; text-overflow: ellipsis;
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E") right 12px center no-repeat; }
 select.chip.on { background-color: var(--primary); }
 select.chip option { color: #12201d; background: #fff; }
@@ -94,7 +102,7 @@ select.chip option { color: #12201d; background: #fff; }
   position: fixed; z-index: 900; left: 0; right: 0; bottom: 0; height: var(--sh);
   background: var(--surface); border-radius: 24px 24px 0 0; box-shadow: 0 -4px 24px rgba(10, 30, 26, .22);
   display: flex; flex-direction: column; transition: height .26s cubic-bezier(.2, .8, .2, 1);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--chrome-bottom));
 }
 #sheet.dragging { transition: none; }
 #grab { height: 28px; flex: none; display: grid; place-items: center; touch-action: none; cursor: grab; }
@@ -147,7 +155,7 @@ select.chip option { color: #12201d; background: #fff; }
 .links a, .links .btn { min-height: 40px; padding: 0 14px; border-radius: 20px; background: var(--surface-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .92rem; color: var(--ink); }
 
 /* navigation */
-#navbar { position: fixed; z-index: 1000; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: none;
+#navbar { position: fixed; z-index: 1000; top: calc(max(10px, env(safe-area-inset-top)) + var(--chrome-top)); left: 10px; right: 10px; display: none;
   background: var(--primary); color: var(--primary-ink); border-radius: 20px; padding: 14px 16px; gap: 14px; align-items: center; box-shadow: var(--shadow); }
 body[data-mode=nav] #navbar { display: flex; }
 body[data-mode=nav] #top { display: none; }
@@ -245,6 +253,7 @@ body[data-snap="2"] #fab { opacity: 0; pointer-events: none; }
 <button type="button" class="round" id="compass" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 17.5 13h-11z" fill="#d93025"/><path d="M12 22 6.5 13h11z" fill="currentColor" opacity=".4"/></svg></button>
 <button type="button" class="round" id="fab"><span class="ic" data-ic="locate"></span></button>
 <div id="toast" role="status"></div>
+<div id="problem" role="alert" hidden><span data-i="problem"></span><button type="button" class="btn" id="restart" data-i="restart"></button></div>
 
 <section id="sheet" aria-label="Rezultati">
   <div id="grab" role="button" tabindex="0"><span></span></div>
@@ -311,7 +320,7 @@ const I18N = {
     arrived: "Stigli ste do groba", end: "Završi", done: "Gotovo", min: "min", toGrave: "do groba", steps: "Koraci", showSteps: "Prikaži korake", hideSteps: "Sakrij korake",
     depart: "Krenite", arrive: "Stigli ste", left: "skrenite lijevo", right: "skrenite desno", sleft: "blago lijevo", sright: "blago desno",
     shleft: "oštro lijevo", shright: "oštro desno", straight: "nastavite ravno", uturn: "okrenite se", on: "na",
-    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", tilesBusy: "Karta grobnih mjesta se privremeno sporo učitava. Pokušat ću ponovno za trenutak.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
+    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", tilesBusy: "Karta grobnih mjesta se privremeno sporo učitava. Pokušat ću ponovno za trenutak.", problem: "Nešto nije u redu.", restart: "Počni ispočetka", loadFailed: "Zapis nije moguće učitati.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
     credit: "Podaci: javni servis Gradskih groblja Zagreb. Neslužbeno sučelje. Karta: OpenStreetMap, rute: OSRM.",
     rowPlot: (p, c, n) => [p && "polje " + p, c && "razred " + c, n && "broj " + n].filter(Boolean).join(" · "),
   },
@@ -334,7 +343,7 @@ const I18N = {
     arrived: "You have arrived at the grave", end: "End", done: "Done", min: "min", toGrave: "to the grave", steps: "Steps", showSteps: "Show steps", hideSteps: "Hide steps",
     depart: "Head out", arrive: "You have arrived", left: "turn left", right: "turn right", sleft: "bear left", sright: "bear right",
     shleft: "sharp left", shright: "sharp right", straight: "continue straight", uturn: "make a U-turn", on: "onto",
-    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", tilesBusy: "The grave plot map is loading slowly right now. It will retry shortly.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
+    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", tilesBusy: "The grave plot map is loading slowly right now. It will retry shortly.", problem: "Something went wrong.", restart: "Start over", loadFailed: "That record could not be loaded.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
     credit: "Data: public service of Gradska groblja Zagreb. Unofficial interface. Map: OpenStreetMap, routes: OSRM.",
     rowPlot: (p, c, n) => [p && "field " + p, c && "class " + c, n && "no. " + n].filter(Boolean).join(" · "),
   },
@@ -479,7 +488,7 @@ function initMap() {
   map = L.map("map", { zoomControl: false, attributionControl: true, rotate: true, bearing: 0, touchRotate: true, rotateControl: false, maxZoom: 21 }).setView([45.815, 15.98], 11);
   L.control.zoom({ position: "bottomright" }).addTo(map);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 21, maxNativeZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | Groblja: Gradska groblja Zagreb',
+    maxZoom: 21, maxNativeZoom: 19, errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | Groblja: Gradska groblja Zagreb',
   }).addTo(map);
   map.createPane("plots", map.getPane("tilePane").parentElement).style.zIndex = 250; // must live inside the plugin's rotating pane
   layerPlots = L.layerGroup().addTo(map);
@@ -586,7 +595,7 @@ const fitPoint = (lat, lon, meters = 70) => fit(L.latLng(lat, lon).toBounds(mete
 
 const sheet = $("#sheet"), body = $("#sheetbody");
 let snaps = [132, 400, 700], snapIdx = 0;
-function computeSnaps() { const H = innerHeight; snaps = [132, Math.round(H * .5), H - 128]; }
+function computeSnaps() { const H = Math.min(innerHeight, window.visualViewport?.height || innerHeight); snaps = [132, Math.round(H * .5), H - 128]; }
 const sheetPx = () => isMobile() ? snaps[snapIdx] : 0;
 function setSnap(i) {
   computeSnaps(); snapIdx = Math.max(0, Math.min(2, i));
@@ -655,12 +664,19 @@ function showCemetery(key) {
   setMode("cemetery");
   layerResults.clearLayers(); layerGrave.clearLayers(); layerRoute.clearLayers(); drawCemeteries();
   show(
-    el("div", { class: "pad" }, el("h2", { class: "h1" }, "Groblje " + c[2]), el("p", { class: "sub" }, c[3])),
+    el("div", { class: "dhead" },
+      el("div", {}, el("h2", { class: "h1" }, "Groblje " + c[2]), el("p", { class: "sub" }, c[3])),
+      el("button", { class: "x", type: "button", "aria-label": t("close"), onclick: closeCemetery }, ic("close"))),
     el("div", { class: "acts" }, el("a", { class: "btn primary", href: driveUrl(key), target: "_blank", rel: "noopener" }, ic("car"), t("driveTo"))),
     el("div", { class: "note" }, t("cemHint")));
   setSnap(1);
   fitPoint(c[0], c[1], 900);
   writeHash();
+}
+
+function closeCemetery() {
+  S.cem = "%"; $("#cem").value = "%"; updateChips();
+  renderHome(); writeHash();
 }
 
 let searchCtl, searchTimer;
@@ -1064,7 +1080,7 @@ async function applyHash() {
   if (hasQuery && S.key !== key) await doSearch();
   if (guid && /^[0-9a-f-]{36}$/i.test(guid)) {
     let r = S.rows.find(x => x.SYNC_GUID === guid);
-    if (!r) { try { r = await loadGrave(guid); } catch {} }
+    if (!r) { try { r = await loadGrave(guid); } catch { toast(t("loadFailed")); } }
     if (r) { openGrave(r, { push: false }); writeHash(guid, false); return; }
   }
   if (hasQuery) { setMode("results"); S.grave = null; layerGrave.clearLayers(); layerRoute.clearLayers(); layerCem.clearLayers(); renderResults(); pinResults(true); setSnap(1); }
@@ -1122,17 +1138,64 @@ $("#lang").addEventListener("click", () => {
   else if (S.mode === "home") renderHome();
 });
 
+/* ---------- recovery ---------- */
+
+// Whatever state the app is in, "Start over" returns to a clean home screen.
+function recover() {
+  $("#problem").hidden = true;
+  try {
+    history.replaceState(null, "", location.pathname + location.search);
+    searchCtl?.abort(); clearTimeout(searchTimer);
+    stopNav();
+    Object.assign(S, { rows: [], key: "", text: "", cem: "%", from: "", to: "", grave: null });
+    $("#q").value = ""; $("#cem").value = "%"; $("#yfrom").value = ""; $("#yto").value = ""; $("#yearpop").hidden = true;
+    syncUi(); renderHome(); setSnap(0);
+  } catch { location.replace(location.pathname + location.search); }
+}
+function problem(e) {
+  if (e?.name === "AbortError" || /Script error/.test(e?.message || "")) return;
+  console.error(e);
+  $("#problem").hidden = false;
+}
+addEventListener("error", e => problem(e.error || { message: e.message }));
+addEventListener("unhandledrejection", e => problem(e.reason));
+$("#restart").addEventListener("click", recover);
+
+// Coming back to the page (refresh, back button, app switch) can leave the map and sheet sized for the old viewport.
+function resync() { map.invalidateSize(); setSnap(snapIdx); updatePlots(); }
+addEventListener("pageshow", e => { resync(); if (e.persisted) applyHash().catch(recover); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) resync(); });
+window.visualViewport?.addEventListener("resize", () => setSnap(snapIdx));
+
+// Some phone browsers draw their toolbars over the page instead of shrinking it. The page then fills the whole screen and
+// the search bar can sit under the top bar. Leave room for them, on touch devices in a normal browser tab only.
+if (matchMedia("(pointer: coarse)").matches && !matchMedia("(display-mode: standalone)").matches && innerHeight >= screen.height - 4) {
+  document.documentElement.style.setProperty("--chrome-top", "64px");
+  document.documentElement.style.setProperty("--chrome-bottom", "72px");
+}
+
+// ?debug=1 prints what the browser reports, for screenshots when a layout looks wrong.
+if (new URLSearchParams(location.search).has("debug")) {
+  const dbg = el("pre", { id: "debug" }); document.body.append(dbg);
+  const probe = el("div", { style: "position:fixed;left:0;top:0;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)" }); document.body.append(probe);
+  const rect = s => { const n = $(s); if (!n) return "none"; const b = n.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round).join(","); };
+  setInterval(() => {
+    const cs = getComputedStyle(probe), vv = window.visualViewport;
+    dbg.textContent = `inner ${innerWidth}x${innerHeight} screen ${screen.width}x${screen.height} dpr ${devicePixelRatio}\nvv ${vv ? [vv.width, vv.height, vv.offsetTop, vv.scale].map(n => +n.toFixed(2)).join(",") : "n/a"} safe ${cs.paddingTop}/${cs.paddingBottom}\nchrome ${getComputedStyle(document.documentElement).getPropertyValue("--chrome-top")}/${getComputedStyle(document.documentElement).getPropertyValue("--chrome-bottom")} mode ${S.mode} snap ${snapIdx}\npill ${rect(".pill")} chips ${rect(".chips")}\nsheet ${rect("#sheet")} body ${rect("#sheetbody")}`;
+  }, 700);
+}
+
 /* ---------- boot ---------- */
 
 initMap();
 applyLang();
 setSnap(0);
 updateCompass();
-addEventListener("popstate", applyHash);
+addEventListener("popstate", () => applyHash().catch(recover));
 getJson(`${API}/V_WEB_GROBLJA?$orderby=NAZIV_GROB`)
   .then(d => fillCemeteries(d.value.map(g => g.NAZIV_GROB)))
   .catch(() => {})
-  .finally(applyHash);
+  .finally(() => applyHash().catch(recover));
 </script>
 </body>
 </html>
