@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root {
+  color-scheme: light dark;
   --surface: #ffffff;
   --surface-2: #f1f4f3;
   --ink: #12201d;
@@ -126,10 +127,9 @@ select.chip option { color: #12201d; background: #fff; }
 .dhead { display: flex; align-items: flex-start; gap: 10px; padding: 0 12px 0 20px; }
 .dhead > div { flex: 1; min-width: 0; padding-top: 4px; }
 .x { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; flex: none; }
-.acts { display: flex; gap: 8px; padding: 14px 20px 6px; overflow-x: auto; scrollbar-width: none; }
-.acts::-webkit-scrollbar { display: none; }
-.acts .btn { flex: none; }
-.acts .btn.primary { flex: 1 0 auto; min-width: 180px; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px 6px; }
+.acts .btn { flex: 1 1 auto; }
+.acts .btn.primary { flex: 1 1 100%; }
 .info { margin: 10px 0 0; }
 .irow { display: flex; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); align-items: flex-start; }
 .irow > .ic { color: var(--primary); margin-top: 2px; }
@@ -181,13 +181,13 @@ body[data-snap="2"] #fab { opacity: 0; pointer-events: none; }
 /* desktop: side panel */
 @media (min-width: 801px) {
   #top { left: 16px; right: auto; width: 408px; top: 16px; }
-  #sheet { left: 16px; right: auto; width: 408px; top: calc(var(--topH) + 24px); bottom: 16px; height: auto; border-radius: 20px; transition: none; padding-bottom: 0; box-shadow: var(--shadow); }
+  #sheet { left: 16px; right: auto; width: 408px; top: calc(var(--topH) + 24px); bottom: auto; height: auto; max-height: calc(100dvh - var(--topH) - 40px); border-radius: 20px; transition: none; padding-bottom: 0; box-shadow: var(--shadow); }
   #grab { display: none; }
   #sheetbody { padding-top: 14px; }
   #fab { bottom: 110px; right: 16px; transition: none; }
   #toast { bottom: 28px; left: calc(50% + 220px); }
   #navbar { left: 16px; right: auto; width: 408px; top: 16px; }
-  body[data-mode=nav] #sheet { top: auto; max-height: calc(100dvh - 130px); }
+  body[data-mode=nav] #sheet { top: auto; bottom: 16px; max-height: calc(100dvh - 130px); }
   .leaflet-right .leaflet-control { margin-right: 16px; }
 }
 @media (max-width: 800px) {
