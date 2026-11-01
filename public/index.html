@@ -553,23 +553,48 @@ function tileFailed() {
     if (now - tileQueue.warned > 60000) { tileQueue.warned = now; toast(t("tilesBusy")); }
   }
 }
+// Tiles already seen are kept in memory (as blob URLs), so zooming out and back in redraws them at once, whatever the
+// browser's own cache does and whatever mood the city's server is in. Oldest tiles go first.
+const tileCache = new Map(), TILE_CACHE_MAX = 600;
+function rememberTile(url, blobUrl) {
+  tileCache.delete(url); tileCache.set(url, blobUrl);
+  while (tileCache.size > TILE_CACHE_MAX) {
+    const [old, blob] = tileCache.entries().next().value;
+    tileCache.delete(old); setTimeout(() => URL.revokeObjectURL(blob), 120000); // leave time for tiles still on screen
+  }
+}
 function queuedTile(layer, coords, done) {
   const tile = document.createElement("img");
   tile.alt = ""; tile.setAttribute("role", "presentation");
   const url = layer.getTileUrl(coords);
+  const cached = tileCache.get(url);
+  if (cached) {
+    tileCache.delete(url); tileCache.set(url, cached);              // most recently used
+    tile.onload = () => done(null, tile);
+    tile.onerror = () => { tileCache.delete(url); done(new Error("cached tile failed"), tile); };
+    tile.src = cached;
+    return tile;
+  }
   let tries = 0, created = false;
   const attempt = () => {
     tileQueue.waiting.push(() => {
       let freed = false, timer;
-      const finish = () => { if (freed) return; freed = true; clearTimeout(timer); tileQueue.running--; pumpTiles(); }; // once per attempt, whatever fires
+      const finish = () => { if (freed) return; freed = true; clearTimeout(timer); tileQueue.running--; pumpTiles(); }; // once per attempt
       const retry = () => { tileFailed(); if (++tries <= 3) setTimeout(attempt, 1500 * tries); else done(new Error("tile failed"), tile); };
       if (created && !tile.isConnected) { finish(); return; }       // its layer or area left the map while the tile waited
-      // A browser may silently drop a request for an image that left the page, and then neither load nor error fires.
-      // Without this timeout that tile would hold its queue slot forever and, after four of them, no tile would load.
-      timer = setTimeout(() => { tile.onload = tile.onerror = null; finish(); if (tile.isConnected) retry(); }, 15000);
-      tile.onload = () => { finish(); done(null, tile); };
-      tile.onerror = () => { finish(); retry(); };
-      tile.src = tries ? `${url}&_r=${tries}` : url;
+      const ctl = new AbortController();
+      timer = setTimeout(() => ctl.abort(), 15000);                  // a request that never answers must not hold its slot
+      fetch(tries ? `${url}&_r=${tries}` : url, { signal: ctl.signal })
+        .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
+        .then(blob => {
+          if (!blob.type.startsWith("image/")) throw new Error("not an image");
+          const blobUrl = URL.createObjectURL(blob);
+          rememberTile(url, blobUrl); finish();
+          tile.onload = () => done(null, tile);
+          tile.onerror = () => done(new Error("tile decode failed"), tile);
+          tile.src = blobUrl;
+        })
+        .catch(() => { finish(); if (tile.isConnected) retry(); });
     });
     pumpTiles();
   };
