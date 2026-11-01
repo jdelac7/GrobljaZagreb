@@ -130,6 +130,9 @@ select.chip option { color: #12201d; background: #fff; }
 .acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px 6px; }
 .acts .btn { flex: 1 1 auto; }
 .acts .btn.primary { flex: 1 1 100%; }
+.openin { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.openin span { flex: 1 1 100%; color: var(--muted); font-size: .9rem; }
+.openin .btn { flex: 1 1 0; }
 .info { margin: 10px 0 0; }
 .irow { display: flex; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); align-items: flex-start; }
 .irow > .ic { color: var(--primary); margin-top: 2px; }
@@ -755,7 +758,10 @@ function openGrave(r, { push = true } = {}) {
     el("div", { class: "acts" },
       d ? btn("primary", "nav", t("walk"), startNav) : null,
       el("a", { class: "btn", href: driveUrl(r.NAZIV_GROB), target: "_blank", rel: "noopener" }, ic("car"), t("drive")),
-      btn("", "share", t("share"), shareGrave)),
+      btn("", "share", t("share"), shareGrave),
+      d ? el("div", { class: "openin" }, el("span", {}, t("openIn")),
+        el("a", { class: "btn", href: `https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=walking`, target: "_blank", rel: "noopener" }, "Google Maps"),
+        el("a", { class: "btn", href: `https://maps.apple.com/?daddr=${ll}&dirflg=w`, target: "_blank", rel: "noopener" }, "Apple Maps")) : null),
     el("div", { class: "info" },
       el("div", { class: "irow" }, ic("flag"), el("div", {},
         el("div", { class: "s" }, t("place")),
@@ -763,14 +769,7 @@ function openGrave(r, { push = true } = {}) {
         r.KRATICA_OGRMJ ? el("div", { class: "s", style: "margin-top:6px" }, `${t("section")}: ${r.KRATICA_OGRMJ}`) : null,
         d && !d.exact ? el("div", { class: "note", style: "margin:10px 0 0" }, t("approx")) : null)),
       cem ? el("div", { class: "irow" }, ic("pin"), el("div", {}, el("div", { class: "v" }, "Groblje " + cem[2]), el("div", { class: "s" }, cem[3]))) : null,
-      facts.length ? el("div", { class: "irow" }, ic("cal"), el("div", {}, facts.map(([k, v]) => el("div", {}, el("span", { class: "s" }, k + " "), el("span", { class: "v" }, v))))) : null,
-      d ? el("div", { class: "irow" }, ic("nav"), el("div", {},
-        el("div", { class: "s" }, t("openIn")),
-        el("div", { class: "links" },
-          el("a", { href: `https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=walking`, target: "_blank", rel: "noopener" }, "Google Maps"),
-          el("a", { href: `https://maps.apple.com/?daddr=${ll}&dirflg=w`, target: "_blank", rel: "noopener" }, "Apple Maps"),
-          el("a", { href: `https://waze.com/ul?ll=${ll}&navigate=yes`, target: "_blank", rel: "noopener" }, "Waze"),
-          el("button", { class: "btn", type: "button", onclick: async () => { try { await navigator.clipboard.writeText(`${d.lat}, ${d.lon}`); } catch {} toast(t("copiedC")); } }, ic("copy"), t("copy"))))) : null));
+      facts.length ? el("div", { class: "irow" }, ic("cal"), el("div", {}, facts.map(([k, v]) => el("div", {}, el("span", { class: "s" }, k + " "), el("span", { class: "v" }, v))))) : null));
   setSnap(1);
   if (d) {
     L.marker([d.lat, d.lon], { icon: flameIcon(d.exact), title: nameOf(r), keyboard: false }).addTo(layerGrave);
