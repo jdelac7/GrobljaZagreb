@@ -84,11 +84,20 @@ select.chip { font-size: 16px; /* iOS zooms the page when a smaller control gets
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E") right 12px center no-repeat; }
 select.chip.on { background-color: var(--primary); }
 select.chip option { color: #12201d; background: #fff; }
-#yearpop { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 14px; display: grid; gap: 12px; }
-#yearpop .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-#yearpop label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
-#yearpop input { height: 48px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 0 12px; font-size: 1.1rem; width: 100%; }
-#yearpop .acts { display: flex; gap: 8px; justify-content: flex-end; }
+#filterpop { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 14px 14px 0; display: grid; gap: 12px; max-height: calc(100dvh - 150px - var(--chrome-top) - var(--chrome-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+#filterpop .fsec { display: grid; gap: 6px; }
+#filterpop .fsec > b { font-size: .95rem; }
+#filterpop .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#filterpop label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+#filterpop input { height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 0 12px; font-size: 1.1rem; width: 100%; }
+#filterpop small { color: var(--muted); font-size: .8rem; line-height: 1.3; }
+#filterpop .acts { display: flex; flex-wrap: nowrap; gap: 8px; justify-content: flex-end; padding: 10px 0 14px; position: sticky; bottom: 0; background: var(--surface); }
+#filterpop .acts .btn { flex: 0 0 auto; }
+#filterpop .acts .btn.primary { flex: 1 1 auto; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button { height: 44px; border-radius: 22px; background: var(--surface-2); font-weight: 600; }
+.seg button[aria-checked="true"] { background: var(--primary); color: var(--primary-ink); }
+#filterchip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* buttons */
 .btn { min-height: 48px; padding: 0 20px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; background: var(--surface-2); text-decoration: none; color: var(--ink); }
@@ -231,16 +240,33 @@ body[data-snap="2"] #fab { opacity: 0; pointer-events: none; }
   </div>
   <div class="chips">
     <select class="chip" id="cem" aria-label="Groblje"><option value="%"></option></select>
-    <button type="button" class="chip" id="yearchip"></button>
+    <button type="button" class="chip" id="filterchip" aria-expanded="false" aria-controls="filterpop"></button>
   </div>
-  <div id="yearpop" hidden>
-    <div class="two">
-      <label><span data-i="from"></span><input id="yfrom" inputmode="numeric" maxlength="4" placeholder="1990"></label>
-      <label><span data-i="to"></span><input id="yto" inputmode="numeric" maxlength="4" placeholder="2024"></label>
+  <div id="filterpop" hidden>
+    <div class="fsec"><b data-i="fYear"></b>
+      <div class="two">
+        <label><span data-i="from"></span><input id="yfrom" inputmode="numeric" maxlength="4" placeholder="1990"></label>
+        <label><span data-i="to"></span><input id="yto" inputmode="numeric" maxlength="4" placeholder="2024"></label>
+      </div>
+    </div>
+    <div class="fsec"><b data-i="fAge"></b>
+      <div class="two">
+        <label><span data-i="from"></span><input id="afrom" inputmode="numeric" maxlength="3" placeholder="60"></label>
+        <label><span data-i="to"></span><input id="ato" inputmode="numeric" maxlength="3" placeholder="90"></label>
+      </div>
+      <small data-i="fAgeNote"></small>
+    </div>
+    <div class="fsec"><b data-i="fSex"></b>
+      <div class="seg" role="radiogroup" id="sexseg">
+        <button type="button" role="radio" data-sex="" aria-checked="true" data-i="sexAll"></button>
+        <button type="button" role="radio" data-sex="f" aria-checked="false" data-i="sexF"></button>
+        <button type="button" role="radio" data-sex="m" aria-checked="false" data-i="sexM"></button>
+      </div>
+      <small data-i="fSexNote"></small>
     </div>
     <div class="acts">
-      <button type="button" class="btn ghost" id="yclear" data-i="clear"></button>
-      <button type="button" class="btn primary" id="yapply" data-i="apply"></button>
+      <button type="button" class="btn ghost" id="fclear" data-i="clear"></button>
+      <button type="button" class="btn primary" id="fapply" data-i="apply"></button>
     </div>
   </div>
 </div>
@@ -320,7 +346,7 @@ const I18N = {
     arrived: "Stigli ste do groba", end: "Završi", done: "Gotovo", min: "min", toGrave: "do groba", steps: "Koraci", showSteps: "Prikaži korake", hideSteps: "Sakrij korake",
     depart: "Krenite", arrive: "Stigli ste", left: "skrenite lijevo", right: "skrenite desno", sleft: "blago lijevo", sright: "blago desno",
     shleft: "oštro lijevo", shright: "oštro desno", straight: "nastavite ravno", uturn: "okrenite se", on: "na",
-    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", tilesBusy: "Karta grobnih mjesta se privremeno sporo učitava. Pokušat ću ponovno za trenutak.", problem: "Nešto nije u redu.", restart: "Počni ispočetka", loadFailed: "Zapis nije moguće učitati.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
+    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", tilesBusy: "Karta grobnih mjesta se privremeno sporo učitava. Pokušat ću ponovno za trenutak.", filters: "Filteri", fYear: "Godina smrti", fAge: "Dob pri smrti (godine)", fAgeNote: "Samo zapisi s poznatom dobi ili s datumima rođenja i smrti.", fSex: "Spol", sexAll: "Svi", sexF: "Žene", sexM: "Muškarci", fSexNote: "Baza groblja ne bilježi spol. Procjenjuje se prema imenu i djevojačkom prezimenu, pa može pogriješiti.", hiddenN: n => `Filteri sakrivaju još ${n} ${n === 1 ? "zapis" : "zapisa"}.`, clearFilters: "Očisti filtere", capFilter: "Filteri dobi i spola primjenjuju se samo na tih 100.", problem: "Nešto nije u redu.", restart: "Počni ispočetka", loadFailed: "Zapis nije moguće učitati.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
     credit: "Podaci: javni servis Gradskih groblja Zagreb. Neslužbeno sučelje. Karta: OpenStreetMap, rute: OSRM.",
     rowPlot: (p, c, n) => [p && "polje " + p, c && "razred " + c, n && "broj " + n].filter(Boolean).join(" · "),
   },
@@ -343,7 +369,7 @@ const I18N = {
     arrived: "You have arrived at the grave", end: "End", done: "Done", min: "min", toGrave: "to the grave", steps: "Steps", showSteps: "Show steps", hideSteps: "Hide steps",
     depart: "Head out", arrive: "You have arrived", left: "turn left", right: "turn right", sleft: "bear left", sright: "bear right",
     shleft: "sharp left", shright: "sharp right", straight: "continue straight", uturn: "make a U-turn", on: "onto",
-    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", tilesBusy: "The grave plot map is loading slowly right now. It will retry shortly.", problem: "Something went wrong.", restart: "Start over", loadFailed: "That record could not be loaded.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
+    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", tilesBusy: "The grave plot map is loading slowly right now. It will retry shortly.", filters: "Filters", fYear: "Year of death", fAge: "Age at death (years)", fAgeNote: "Only records with a known age, or with both birth and death dates.", fSex: "Gender", sexAll: "All", sexF: "Women", sexM: "Men", fSexNote: "The cemetery database has no gender field. It is estimated from the first name and any maiden name, so it can be wrong.", hiddenN: n => `Filters hide ${n} more ${n === 1 ? "record" : "records"}.`, clearFilters: "Clear filters", capFilter: "Age and gender filters apply to those 100 only.", problem: "Something went wrong.", restart: "Start over", loadFailed: "That record could not be loaded.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
     credit: "Data: public service of Gradska groblja Zagreb. Unofficial interface. Map: OpenStreetMap, routes: OSRM.",
     rowPlot: (p, c, n) => [p && "field " + p, c && "class " + c, n && "no. " + n].filter(Boolean).join(" · "),
   },
@@ -636,7 +662,60 @@ function show(...nodes) { body.replaceChildren(...nodes.flat().filter(Boolean));
 
 /* ---------- state & views ---------- */
 
-const S = { mode: "home", rows: [], capped: false, text: "", cem: "%", from: "", to: "", grave: null, key: "" };
+const S = { mode: "home", rows: [], allRows: [], hidden: 0, capped: false, text: "", cem: "%", from: "", to: "", ageFrom: "", ageTo: "", sex: "", grave: null, key: "" };
+
+/* ---------- age and gender filters ---------- */
+
+// Age at death. Uses the recorded age, else works it out from the birth and death dates.
+function ageOf(r) {
+  const n = Number(r.STAROST_GODINA);
+  if (n > 0 && n < 125) return n;
+  const b = r.DATUM_RODJENJA, d = r.DATUM_SMRTI || r.COMP_DATUM_SMRTI;
+  if (!b || !d) return null;
+  const by = +b.slice(0, 4), dy = +d.slice(0, 4);
+  let a = dy - by;
+  if (!isJan1(b)) { // a real birth date, so count whole years
+    if (d.slice(5, 10) < b.slice(5, 10)) a--;
+  }
+  return a >= 0 && a < 125 ? a : null;
+}
+
+// The database has no gender field. Maiden surname means a woman. Otherwise guess from the first name.
+const MALE_ENDING_A = new Set(["nikola", "luka", "ilija", "andrija", "sasa", "toma", "jura", "mata", "bora", "boza", "joza", "kosta", "vasa", "sima", "tola", "pasko"]);
+const FEMALE_OTHER = new Set(["ines", "karmen", "nives", "dolores", "mirjam", "ester", "rut", "ruth", "mare", "kate", "ljubica", "dragica"]);
+function sexOf(r) {
+  if (r.DJEV_PREZIME_OSOB) return "f";
+  const first = fold(String(r.COMP_IME_OSOB ?? r.IME_OSOB ?? "").split(/[\s-]+/)[0]).toLowerCase();
+  if (first.length < 2) return null;
+  if (FEMALE_OTHER.has(first)) return "f";
+  if (first.endsWith("a")) return MALE_ENDING_A.has(first) ? "m" : "f";
+  return "m";
+}
+
+function readFilters() {
+  const n = v => { const x = parseInt(v, 10); return x >= 0 ? String(x) : ""; };
+  S.ageFrom = n($("#afrom").value); S.ageTo = n($("#ato").value);
+  S.sex = $("#sexseg [aria-checked=true]")?.dataset.sex || "";
+}
+function setSexUi(v) { for (const b of document.querySelectorAll("#sexseg button")) b.setAttribute("aria-checked", String(b.dataset.sex === v)); }
+const filtersActive = () => !!(S.ageFrom || S.ageTo || S.sex);
+function applyFilters(rows) {
+  const lo = S.ageFrom === "" ? -1 : +S.ageFrom, hi = S.ageTo === "" ? 999 : +S.ageTo;
+  const out = rows.filter(r => {
+    if (S.ageFrom !== "" || S.ageTo !== "") { const a = ageOf(r); if (a == null || a < lo || a > hi) return false; }
+    if (S.sex && sexOf(r) !== S.sex) return false;
+    return true;
+  });
+  S.hidden = rows.length - out.length;
+  return out;
+}
+function clearAgeSex() { $("#afrom").value = ""; $("#ato").value = ""; setSexUi(""); readFilters(); }
+const currentKey = () => JSON.stringify([$("#q").value.trim(), $("#cem").value, $("#yfrom").value.trim(), $("#yto").value.trim()]);
+function refilter() {
+  S.rows = applyFilters(S.allRows);
+  setMode("results"); S.grave = null; layerGrave.clearLayers(); layerRoute.clearLayers(); layerCem.clearLayers();
+  renderResults(); pinResults(true); setSnap(1); writeHash();
+}
 let nav = null;
 const setMode = m => { S.mode = m; document.body.dataset.mode = m; };
 
@@ -686,9 +765,9 @@ function closeCemetery() {
 let searchCtl, searchTimer;
 async function doSearch() {
   const text = $("#q").value.trim();
-  S.text = text; S.cem = $("#cem").value; S.from = $("#yfrom").value.trim(); S.to = $("#yto").value.trim();
+  S.text = text; S.cem = $("#cem").value; S.from = $("#yfrom").value.trim(); S.to = $("#yto").value.trim(); readFilters();
   searchCtl?.abort();
-  if (text.length < 2) { S.rows = []; S.key = ""; if (S.cem !== "%") showCemetery(S.cem); else { renderHome(); writeHash(); } return; }
+  if (text.length < 2) { S.rows = []; S.allRows = []; S.key = ""; if (S.cem !== "%") showCemetery(S.cem); else { renderHome(); writeHash(); } return; }
   searchCtl = new AbortController();
   const signal = searchCtl.signal;
   stopNav(true);
@@ -703,7 +782,7 @@ async function doSearch() {
     rows.sort((a, b) => (a.COMP_PREZIME_OSOB || "").localeCompare(b.COMP_PREZIME_OSOB || "", "hr")
       || (a.COMP_IME_OSOB || "").localeCompare(b.COMP_IME_OSOB || "", "hr")
       || (b.COMP_GODINA_SMRTI || 0) - (a.COMP_GODINA_SMRTI || 0));
-    S.rows = rows; S.capped = capped; S.key = key;
+    S.allRows = rows; S.rows = applyFilters(rows); S.capped = capped; S.key = key;
     renderResults(); pinResults(true);
   } catch (e) {
     if (signal.aborted) return;
@@ -714,20 +793,23 @@ async function doSearch() {
 
 function renderResults() {
   const rows = S.rows;
+  const clearBtn = () => el("button", { class: "btn", type: "button", onclick: () => { clearAgeSex(); updateChips(); refilter(); } }, t("clearFilters"));
   if (!rows.length) {
-    show(el("div", { class: "empty" }, el("b", {}, t("none")), t("noneSub"), el("p", {}, t("noneBusy")),
-      el("button", { class: "btn primary", type: "button", onclick: () => doSearch() }, t("retry"))));
+    show(el("div", { class: "empty" }, el("b", {}, t("none")), t("noneSub"),
+      S.hidden ? el("p", {}, t("hiddenN")(S.hidden)) : el("p", {}, t("noneBusy")),
+      S.hidden ? clearBtn() : el("button", { class: "btn primary", type: "button", onclick: () => doSearch() }, t("retry"))));
     return;
   }
   show(
     el("div", { class: "pad sub", style: "font-weight:600;margin-bottom:4px" }, t("count")(rows.length)),
-    S.capped ? el("div", { class: "note" }, t("capped")) : null,
+    S.capped ? el("div", { class: "note" }, t("capped"), filtersActive() ? " " + t("capFilter") : "") : null,
+    S.hidden ? el("div", { class: "note" }, t("hiddenN")(S.hidden), " ", el("button", { class: "btn ghost", type: "button", style: "min-height:36px;padding:0 8px", onclick: () => { clearAgeSex(); updateChips(); refilter(); } }, t("clearFilters"))) : null,
     el("ul", { class: "list" }, rows.map(r => el("li", {},
       el("button", { class: "row", type: "button", onclick: () => openGrave(r) },
         el("span", { class: "avatar" }, initials(r)),
         el("span", { class: "tx" },
           el("span", { class: "nm" }, nameOf(r)),
-          el("span", { class: "yr" }, yearsOf(r)),
+          el("span", { class: "yr" }, [yearsOf(r), ageOf(r) != null ? `${ageOf(r)} ${t("yrs")}` : ""].filter(Boolean).join(" · ")),
           el("span", { class: "pl" }, cemLabel(r.NAZIV_GROB) + " · " + t("rowPlot")(r.KRATICA_PGRMJ, r.KRATICA_RGRMJ, r.BROJ_GRMJ)),
           hasGps(r) ? null : el("span", { class: "warn" }, t("noGps"))),
         el("span", { class: "chev" }, ic("chev")))))));
@@ -1064,6 +1146,9 @@ function writeHash(guid, push) {
   if (S.cem !== "%") h.set("c", S.cem);
   if (S.from) h.set("od", S.from);
   if (S.to) h.set("do", S.to);
+  if (S.ageFrom) h.set("a1", S.ageFrom);
+  if (S.ageTo) h.set("a2", S.ageTo);
+  if (S.sex) h.set("sp", S.sex);
   if (guid) h.set("g", guid);
   const url = "#" + h.toString();
   if (url === location.hash || (!location.hash && url === "#")) return;
@@ -1076,12 +1161,14 @@ async function applyHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   $("#q").value = h.get("q") || ""; $("#cem").value = h.get("c") || "%";
   $("#yfrom").value = h.get("od") || ""; $("#yto").value = h.get("do") || "";
+  $("#afrom").value = h.get("a1") || ""; $("#ato").value = h.get("a2") || ""; setSexUi(["f", "m"].includes(h.get("sp")) ? h.get("sp") : ""); readFilters();
   if (![...$("#cem").options].some(o => o.value === $("#cem").value)) $("#cem").value = "%";
   S.text = $("#q").value.trim(); S.cem = $("#cem").value; S.from = $("#yfrom").value.trim(); S.to = $("#yto").value.trim();
   syncUi();
   const guid = h.get("g"), hasQuery = S.text.length >= 2;
   const key = JSON.stringify([S.text, S.cem, S.from, S.to]);
   if (hasQuery && S.key !== key) await doSearch();
+  else if (hasQuery) S.rows = applyFilters(S.allRows);
   if (guid && /^[0-9a-f-]{36}$/i.test(guid)) {
     let r = S.rows.find(x => x.SYNC_GUID === guid);
     if (!r) { try { r = await loadGrave(guid); } catch { toast(t("loadFailed")); } }
@@ -1095,10 +1182,15 @@ async function applyHash() {
 /* ---------- search bar wiring ---------- */
 
 function updateChips() {
-  const c = $("#cem"), y = $("#yearchip"), f = $("#yfrom").value.trim(), to = $("#yto").value.trim();
+  const c = $("#cem"), y = $("#filterchip"), f = $("#yfrom").value.trim(), to = $("#yto").value.trim();
+  const a1 = $("#afrom").value.trim(), a2 = $("#ato").value.trim(), sx = $("#sexseg [aria-checked=true]")?.dataset.sex || "";
   c.classList.toggle("on", c.value !== "%");
-  y.textContent = f || to ? `${f || "…"} – ${to || "…"}` : t("year");
-  y.classList.toggle("on", !!(f || to));
+  const bits = [];
+  if (f || to) bits.push(`${f || "…"}–${to || "…"}`);
+  if (a1 || a2) bits.push(`${a1 || "…"}–${a2 || "…"} ${t("yrs")}`);
+  if (sx) bits.push(t(sx === "f" ? "sexF" : "sexM"));
+  y.textContent = bits.length ? bits.join(" · ") : t("filters");
+  y.classList.toggle("on", bits.length > 0);
 }
 function syncUi() { $("#clear").hidden = !$("#q").value; updateChips(); }
 
@@ -1117,10 +1209,25 @@ $("#q").addEventListener("input", () => {
 $("#sf").addEventListener("submit", e => { e.preventDefault(); clearTimeout(searchTimer); $("#q").blur(); doSearch(); });
 $("#clear").addEventListener("click", () => { $("#q").value = ""; syncUi(); $("#q").focus(); clearTimeout(searchTimer); doSearch(); });
 $("#cem").addEventListener("change", () => selectCemetery($("#cem").value));
-$("#yearchip").addEventListener("click", () => { $("#yearpop").hidden = !$("#yearpop").hidden; if (!$("#yearpop").hidden) $("#yfrom").focus(); });
-$("#yapply").addEventListener("click", () => { $("#yearpop").hidden = true; updateChips(); doSearch(); });
-$("#yclear").addEventListener("click", () => { $("#yfrom").value = ""; $("#yto").value = ""; $("#yearpop").hidden = true; updateChips(); doSearch(); });
-for (const id of ["#yfrom", "#yto"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") $("#yapply").click(); });
+$("#filterchip").addEventListener("click", () => {
+  const pop = $("#filterpop"); pop.hidden = !pop.hidden;
+  $("#filterchip").setAttribute("aria-expanded", String(!pop.hidden));
+  if (!pop.hidden) $("#yfrom").focus();
+});
+for (const b of document.querySelectorAll("#sexseg button")) b.addEventListener("click", () => setSexUi(b.dataset.sex));
+$("#fapply").addEventListener("click", () => {
+  $("#filterpop").hidden = true; $("#filterchip").setAttribute("aria-expanded", "false");
+  const sameQuery = S.key && S.key === currentKey();
+  readFilters(); updateChips();
+  // Age and gender only filter what was already fetched, so they need no new request.
+  if (sameQuery && S.allRows.length) refilter(); else doSearch();
+});
+$("#fclear").addEventListener("click", () => {
+  $("#yfrom").value = ""; $("#yto").value = ""; clearAgeSex();
+  $("#filterpop").hidden = true; $("#filterchip").setAttribute("aria-expanded", "false");
+  updateChips(); doSearch();
+});
+for (const id of ["#yfrom", "#yto", "#afrom", "#ato"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") $("#fapply").click(); });
 
 function applyLang() {
   document.documentElement.lang = lang;
@@ -1152,7 +1259,8 @@ function recover() {
     searchCtl?.abort(); clearTimeout(searchTimer);
     stopNav();
     Object.assign(S, { rows: [], key: "", text: "", cem: "%", from: "", to: "", grave: null });
-    $("#q").value = ""; $("#cem").value = "%"; $("#yfrom").value = ""; $("#yto").value = ""; $("#yearpop").hidden = true;
+    $("#q").value = ""; $("#cem").value = "%"; $("#yfrom").value = ""; $("#yto").value = ""; $("#filterpop").hidden = true; clearAgeSex();
+    S.allRows = []; S.hidden = 0;
     syncUi(); renderHome(); setSnap(0);
   } catch { location.replace(location.pathname + location.search); }
 }
