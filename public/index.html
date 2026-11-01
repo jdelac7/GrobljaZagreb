@@ -253,7 +253,9 @@ body[data-snap="2"] #fab { opacity: 0; pointer-events: none; }
 <script>
 "use strict";
 
-const API = "https://www.axiomgis.com/Zagreb/Trazilica.svc";
+// The app talks to its own caching proxy (src/worker.js), which shields the city's servers. Add ?direct=1 to talk to the city directly.
+const PROXY = !new URLSearchParams(location.search).has("direct");
+const API = PROXY ? "/api" : "https://www.axiomgis.com/Zagreb/Trazilica.svc";
 const ROUTE_API = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
 
 /* Center point and address of each cemetery, taken from the original site's own map config. */
@@ -292,7 +294,7 @@ const I18N = {
     homeTitle: "Pronađite grob", homeSub: "Upišite ime i prezime ili odaberite groblje.", cems: "Groblja",
     count: n => n + (n === 1 ? " rezultat" : " rezultata"),
     capped: "Prikazano je prvih 100. Dodajte ime, groblje ili godinu smrti da suzite pretragu.",
-    none: "Nema rezultata", noneSub: "Provjerite pravopis ili probajte samo prezime. Dovoljan je i početak prezimena.",
+    none: "Nema rezultata", noneSub: "Provjerite pravopis ili probajte samo prezime. Dovoljan je i početak prezimena.", noneBusy: "Ako ste sigurni da ime postoji, servis groblja je možda privremeno preopterećen. Pričekajte minutu pa pokušajte ponovno.",
     failed: "Servis groblja ne odgovara", failedSub: "Pokušajte ponovno za nekoliko minuta.", retry: "Pokušaj ponovno",
     died: "Umro/la", buried: "Ukopan/a", born: "Rođen/a", age: "Starost", yrs: "god.", diedShort: "umro/la",
     noGps: "Bez točne lokacije", close: "Zatvori",
@@ -306,7 +308,7 @@ const I18N = {
     arrived: "Stigli ste do groba", end: "Završi", done: "Gotovo", min: "min", toGrave: "do groba", steps: "Koraci", showSteps: "Prikaži korake", hideSteps: "Sakrij korake",
     depart: "Krenite", arrive: "Stigli ste", left: "skrenite lijevo", right: "skrenite desno", sleft: "blago lijevo", sright: "blago desno",
     shleft: "oštro lijevo", shright: "oštro desno", straight: "nastavite ravno", uturn: "okrenite se", on: "na",
-    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
+    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", tilesBusy: "Karta grobnih mjesta se privremeno sporo učitava. Pokušat ću ponovno za trenutak.", north: "Sjever gore", headUp: "Smjer kretanja gore", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
     credit: "Podaci: javni servis Gradskih groblja Zagreb. Neslužbeno sučelje. Karta: OpenStreetMap, rute: OSRM.",
     rowPlot: (p, c, n) => [p && "polje " + p, c && "razred " + c, n && "broj " + n].filter(Boolean).join(" · "),
   },
@@ -315,7 +317,7 @@ const I18N = {
     homeTitle: "Find a grave", homeSub: "Type a name or pick a cemetery.", cems: "Cemeteries",
     count: n => n + (n === 1 ? " result" : " results"),
     capped: "Showing the first 100. Add a first name, cemetery or year of death to narrow it down.",
-    none: "No results", noneSub: "Check the spelling or try the surname only. The start of a surname is enough.",
+    none: "No results", noneSub: "Check the spelling or try the surname only. The start of a surname is enough.", noneBusy: "If you are sure the name exists, the cemetery service may be temporarily overloaded. Wait a minute and try again.",
     failed: "The cemetery service is not responding", failedSub: "Try again in a few minutes.", retry: "Try again",
     died: "Died", buried: "Buried", born: "Born", age: "Age", yrs: "yrs", diedShort: "died",
     noGps: "No exact location", close: "Close",
@@ -329,7 +331,7 @@ const I18N = {
     arrived: "You have arrived at the grave", end: "End", done: "Done", min: "min", toGrave: "to the grave", steps: "Steps", showSteps: "Show steps", hideSteps: "Hide steps",
     depart: "Head out", arrive: "You have arrived", left: "turn left", right: "turn right", sleft: "bear left", sright: "bear right",
     shleft: "sharp left", shright: "sharp right", straight: "continue straight", uturn: "make a U-turn", on: "onto",
-    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
+    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", tilesBusy: "The grave plot map is loading slowly right now. It will retry shortly.", north: "North up", headUp: "Heading up", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
     credit: "Data: public service of Gradska groblja Zagreb. Unofficial interface. Map: OpenStreetMap, routes: OSRM.",
     rowPlot: (p, c, n) => [p && "field " + p, c && "class " + c, n && "no. " + n].filter(Boolean).join(" · "),
   },
@@ -387,7 +389,9 @@ async function getJson(url, signal) {
   try {
     const r = await fetch(url, { headers: { Accept: "application/json" }, signal: ctl.signal });
     if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
+    const j = await r.json();
+    if (j["odata.error"]) throw new Error(j["odata.error"].message?.value || "service error"); // the city service throttles with HTTP 200 and this body
+    return j;
   } finally { clearTimeout(timer); }
 }
 
@@ -490,9 +494,47 @@ function initMap() {
 
 /* Rows of graves, field outlines and plot numbers. These are the tile layers the original site draws, from the same map server. */
 const AX = "https://www.axiomgis.com";
+const ATS = PROXY ? "/tiles/ats" : `${AX}/ats.ashx`, WMS = PROXY ? "/tiles/wms" : `${AX}/wms.ashx`;
 const PLOT_LAYERS = {"MIROGOJ":{"p":"PoljaMirogoj","g":"GrobnaMjestaMirogoj,GrobnaMjestaMirogoj_Dopuna,GrobnaMjestaMirogoj_SamoTeren,GrobnaMjestaMirogoj_Polja,GrobnaMjestaMirogoj_Nejasno","f":"OznakePoljaMirogoj","n":"NumeracijaMirogoj,NumeracijaMirogoj_Terenska"},"GAJ URNI":{"p":"PoljaGajUrni","g":"GrobnaMjestaGajUrni,GrobnaMjestaGajUrni_Dodatno1,GrobnaMjestaGajUrni_Dodatno2,GrobnaMjestaGajUrni_Teren","f":"OznakePoljaGajUrni","n":"NumeracijaGajUrni"},"MIROŠEVAC":{"p":"PoljaMirosevac","g":"GrobnaMjestaMirosevac,GrobnaMjestaMirosevac_Nejasno,GrobnaMjestaMirosevac_Dopuna","f":"OznakePoljaMirosevac","n":"NumeracijaMirosevac"},"MARK.POLJE":{"p":"PoljaMarkovoPolje","g":"GrobnaMjestaMarkovoPolje,GrobnaMjestaMarkovoPolje_Dopuna,GrobnaMjestaMarkovoPolje_Nejasno","f":"OznakePoljaMarkovoPolje","n":"NumeracijaMarkovoPolje"},"STENJEVEC":{"p":"PoljaStenjevec","g":"GrobnaMjestaStenjevec","f":"OznakePoljaStenjevec","n":"NumeracijaStenjevec"},"G.VRAPČE":{"p":"PoljaGornjeVrapce","g":"GrobnaMjestaGornjeVrapce","f":"OznakePoljaGornjeVrapce","n":"NumeracijaGornjeVrapce"},"REMETE":{"p":"PoljaRemete","g":"GrobnaMjestaRemete","f":"OznakePoljaRemete","n":"NumeracijaRemete"},"MARKUŠEVEC":{"p":"PoljaMarkusevec","g":"GrobnaMjestaMarkusevec","f":"OznakePoljaMarkusevec","n":"NumeracijaMarkusevec"},"BREZOVICA":{"p":"PoljaBrezovica","g":"GrobnaMjestaBrezovica","f":"OznakePoljaBrezovica","n":"NumeracijaBrezovica"},"K.KRALJEVEC":{"p":"PoljaKupineckiKraljevec","g":"GrobnaMjestaKupineckiKraljevec","f":"OznakePoljaKupineckiKraljevec","n":"NumeracijaKupineckiKraljevec"},"ŠESTINE":{"p":"PoljaSestine","g":"GrobnaMjestaSestine","f":"OznakePoljaSestine","n":"NumeracijaSestine"},"GRAČANI":{"p":"PoljaGracani","g":"GrobnaMjestaGracani","f":"OznakePoljaGracani","n":"NumeracijaGracani"},"RESNIK":{"p":"PoljaResnik","g":"GrobnaMjestaResnik","f":"OznakePoljaResnik","n":"NumeracijaResnik"},"JAKUŠEVEC":{"p":"PoljaJakusevec","g":"GrobnaMjestaJakusevec","f":"OznakePoljaJakusevec","n":"NumeracijaJakusevec"},"ODRA":{"p":"PoljaOdra","g":"GrobnaMjestaOdra","f":"OznakePoljaOdra","n":"NumeracijaOdra"},"SV.KLARA":{"p":"PoljaSvKlara","g":"GrobnaMjestaSvKlara","f":"OznakePoljaSvKlara","n":"NumeracijaSvKlara"},"LUČKO":{"p":"PoljaLucko","g":"GrobnaMjestaLucko","f":"OznakePoljaLucko","n":"NumeracijaLucko"},"ČUČERJE":{"p":"PoljaCucerje","g":"GrobnaMjestaCucerje","f":"OznakePoljaMalaGroblja","n":"NumeracijaCucerje"},"GRANEŠINA":{"p":"PoljaGranesina","g":"GrobnaMjestaGranesina","f":"OznakePoljaGranesina","n":"NumeracijaGranesina"},"ST.SESVETE":{"p":"PoljaMalaGroblja","g":"GrobnaMjestaStareSesvete","f":"OznakePoljaMalaGroblja","n":"NumeracijaMalaGroblja"},"CERJE":{"p":"PoljaCerje","g":"GrobnaMjestaCerje","f":"OznakePoljaCerje","n":"NumeracijaCerje"},"GLAVNICA DONJA":{"p":"GraniceGlavnica","g":"GrobnaMjestaGlavnica","f":"OznakePoljaMalaGroblja","n":"NumeracijaMalaGroblja"},"KAŠINA":{"p":"PoljaKasina","g":"GrobnaMjestaKasina","f":"OznakePoljaKasina","n":"NumeracijaKasina"},"MORAVČE":{"p":"GraniceMoravce","g":"GrobnaMjestaMoravce","f":"OznakePoljaMalaGroblja","n":"NumeracijaMalaGroblja"},"VUGROVEC DONJI":{"p":"PoljaVugrovec","g":"GrobnaMjestaVugrovec","f":"OznakePoljaVugrovec","n":"NumeracijaVugrovec"},"PLANINA DONJA":{"p":"PoljaPlaninaDonja","g":"GrobnaMjestaPlaninaDonja","f":"OznakePoljaPlaninaDonja","n":"NumeracijaPlaninaDonja"}};
 const PLOT_RADIUS = { "MIROGOJ": 1700, "MIROŠEVAC": 1300, "MARK.POLJE": 1300, "GAJ URNI": 600 };
 const WMS_CRS = L.extend({}, L.CRS.EPSG3857, { code: "EPSG:900913" }); // the map server rejects EPSG:3857
+// The city's map server refuses callers that ask for too many tiles. Tiles load through a queue (4 at a time) and failures are
+// retried with a growing delay. After several failures in a row the queue pauses, so the app stops adding to the load.
+const tileQueue = { running: 0, max: 4, waiting: [], fails: [], pausedUntil: 0, warned: 0 };
+function pumpTiles() {
+  const wait = tileQueue.pausedUntil - Date.now();
+  if (wait > 0) { clearTimeout(pumpTiles.t); pumpTiles.t = setTimeout(pumpTiles, wait + 50); return; }
+  while (tileQueue.running < tileQueue.max && tileQueue.waiting.length) { tileQueue.running++; tileQueue.waiting.shift()(); }
+}
+function tileFailed() {
+  const now = Date.now();
+  tileQueue.fails = tileQueue.fails.filter(t => now - t < 20000).concat(now);
+  if (tileQueue.fails.length >= 6) {
+    tileQueue.pausedUntil = now + 30000; tileQueue.fails = [];
+    if (now - tileQueue.warned > 60000) { tileQueue.warned = now; toast(t("tilesBusy")); }
+  }
+}
+function queuedTile(layer, coords, done) {
+  const tile = document.createElement("img");
+  tile.alt = ""; tile.setAttribute("role", "presentation");
+  const url = layer.getTileUrl(coords);
+  let tries = 0, created = false;
+  const finish = () => { tileQueue.running--; pumpTiles(); };
+  const attempt = () => {
+    tileQueue.waiting.push(() => {
+      if (created && !tile.isConnected) { finish(); return; }       // its layer or area left the map while the tile waited
+      tile.onload = () => { finish(); done(null, tile); };
+      tile.onerror = () => { finish(); tileFailed(); if (++tries <= 3) setTimeout(attempt, 1500 * tries); else done(new Error("tile failed"), tile); };
+      tile.src = tries ? `${url}&_r=${tries}` : url;
+    });
+    pumpTiles();
+  };
+  attempt();
+  created = true;
+  return tile;
+}
+const ThrottledTiles = L.TileLayer.extend({ createTile(coords, done) { return queuedTile(this, coords, done); } });
+const ThrottledWMS = L.TileLayer.WMS.extend({ createTile(coords, done) { return queuedTile(this, coords, done); } });
 let plotKey = null;
 function updatePlots() {
   const c = map.getCenter();
@@ -503,14 +545,14 @@ function updatePlots() {
   plotKey = key; layerPlots.clearLayers();
   if (!key) return;
   const p = PLOT_LAYERS[key];
-  // The city's map server resets connections when hit with many tiles at once, so load little and retry failures.
-  const gentle = l => { l.on("tileerror", e => { const t = e.tile, n = (t._retry || 0) + 1; if (n > 3) return; t._retry = n; setTimeout(() => { t.src = e.tile.src.replace(/&_r=\d+/, "") + "&_r=" + n; }, 1200 * n); }); return l; };
-  const tiles = (layers, o) => gentle(L.tileLayer(`${AX}/ats.ashx?MAPSID=ZagrebG&Z={z}&X={x}&Y={y}&LAYERS=${encodeURIComponent(layers)}&FMT=png`, { maxNativeZoom: 19, maxZoom: 21, updateWhenIdle: true, keepBuffer: 1, ...o }));
-  const wms = (layers, o) => gentle(L.tileLayer.wms(`${AX}/wms.ashx?MAPSID=ZagrebG`, { layers, version: "1.3.0", format: "image/png", transparent: true, crs: WMS_CRS, uppercase: true, maxZoom: 21, pane: "plots", updateWhenIdle: true, keepBuffer: 1, ...o }));
-  if (p.p) tiles(p.p, { minZoom: 15, opacity: .7, zIndex: 3 }).addTo(layerPlots);
-  if (p.g) tiles(p.g, { minZoom: 18, pane: "plots" }).addTo(layerPlots);
-  if (p.f) wms(p.f, { minZoom: 16 }).addTo(layerPlots);
-  if (p.n) wms(p.n, { minZoom: 19 }).addTo(layerPlots);
+  const tiles = (layers, o) => new ThrottledTiles(`${ATS}?MAPSID=ZagrebG&Z={z}&X={x}&Y={y}&LAYERS=${encodeURIComponent(layers)}&FMT=png`, { maxNativeZoom: 19, maxZoom: 21, updateWhenIdle: true, keepBuffer: 1, ...o });
+  const wms = (layers, o) => new ThrottledWMS(`${WMS}?MAPSID=ZagrebG`, { layers, version: "1.3.0", format: "image/png", transparent: true, crs: WMS_CRS, uppercase: true, maxZoom: 21, pane: "plots", updateWhenIdle: true, keepBuffer: 1, ...o });
+  // Close in, one tile holds fields and grave plots, and one holds field labels and plot numbers. That halves the requests.
+  const join = (...l) => l.filter(Boolean).join(",");
+  if (p.p) tiles(p.p, { minZoom: 15, maxZoom: 17, opacity: .7, zIndex: 3 }).addTo(layerPlots);
+  if (p.p || p.g) tiles(join(p.p, p.g), { minZoom: 18, opacity: .8, zIndex: 3 }).addTo(layerPlots);
+  if (p.f) wms(p.f, { minZoom: 16, maxZoom: 18 }).addTo(layerPlots);
+  if (p.f || p.n) wms(join(p.f, p.n), { minZoom: 19 }).addTo(layerPlots);
 }
 
 function drawCemeteries() {
@@ -647,7 +689,11 @@ async function doSearch() {
 
 function renderResults() {
   const rows = S.rows;
-  if (!rows.length) { show(el("div", { class: "empty" }, el("b", {}, t("none")), t("noneSub"))); return; }
+  if (!rows.length) {
+    show(el("div", { class: "empty" }, el("b", {}, t("none")), t("noneSub"), el("p", {}, t("noneBusy")),
+      el("button", { class: "btn primary", type: "button", onclick: () => doSearch() }, t("retry"))));
+    return;
+  }
   show(
     el("div", { class: "pad sub", style: "font-weight:600;margin-bottom:4px" }, t("count")(rows.length)),
     S.capped ? el("div", { class: "note" }, t("capped")) : null,
@@ -802,11 +848,21 @@ function updateCompass() {
   c.classList.toggle("on", !!nav?.headingUp);
   c.setAttribute("aria-label", t(nav?.headingUp ? "north" : "headUp"));
 }
+// Direction the user faces. iOS reports it directly. Elsewhere it comes from the orientation angles. With the phone held
+// upright the back of the phone points where the user faces. Held flat, the top edge does.
+function compassFrom(e) {
+  if (typeof e.webkitCompassHeading === "number") return e.webkitCompassHeading;
+  if (e.alpha == null || !(e.absolute || e.type === "deviceorientationabsolute")) return null;
+  const beta = e.beta || 0;
+  if (Math.abs(beta) < 40) return (360 - e.alpha + 360) % 360;
+  const x = rad(beta), y = rad(e.gamma || 0), z = rad(e.alpha);
+  const vx = -Math.cos(z) * Math.sin(y) - Math.sin(z) * Math.sin(x) * Math.cos(y);
+  const vy = -Math.sin(z) * Math.sin(y) + Math.cos(z) * Math.sin(x) * Math.cos(y);
+  return (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360;
+}
 function onCompass(e) {
   if (!nav || Date.now() - nav.gpsAt < 3000) return;
-  let h = null;
-  if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;
-  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
+  const h = compassFrom(e);
   if (h != null) setHeading((h + (screen.orientation?.angle || 0) + 360) % 360);
 }
 async function startCompass() {
@@ -842,7 +898,7 @@ const endButton = () => el("button", { class: "btn danger", type: "button", oncl
 
 function startNav() {
   if (SIM && !simPos) { toast(t("simPick")); return; }
-  if (!SIM) startCompass();
+  startCompass();
   if (!SIM && !navigator.geolocation) { toast(t("locFail")); return; }
   stopNav(true);
   nav = { watch: null, route: null, pos: null, lastFetch: 0, fetching: false, follow: true, arrived: false, wake: null, ui: null, headingUp: true, freeze: false, gpsAt: 0, lastRot: 0, prev: null };
@@ -1032,7 +1088,11 @@ function fillCemeteries(extra = []) {
   sel.value = [...sel.options].some(o => o.value === cur) ? cur : "%";
 }
 
-$("#q").addEventListener("input", () => { syncUi(); clearTimeout(searchTimer); searchTimer = setTimeout(doSearch, 450); });
+// The city service refuses callers who send too many requests, so live search waits for a pause and needs 3 letters.
+$("#q").addEventListener("input", () => {
+  syncUi(); clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { const n = $("#q").value.trim().length; if (n === 0 || n >= 3) doSearch(); }, 800);
+});
 $("#sf").addEventListener("submit", e => { e.preventDefault(); clearTimeout(searchTimer); $("#q").blur(); doSearch(); });
 $("#clear").addEventListener("click", () => { $("#q").value = ""; syncUi(); $("#q").focus(); clearTimeout(searchTimer); doSearch(); });
 $("#cem").addEventListener("change", () => selectCemetery($("#cem").value));
