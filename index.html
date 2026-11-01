@@ -296,7 +296,7 @@ const I18N = {
     arrived: "Stigli ste do groba", end: "Završi", done: "Gotovo", min: "min", toGrave: "do groba", steps: "Koraci", showSteps: "Prikaži korake", hideSteps: "Sakrij korake",
     depart: "Krenite", arrive: "Stigli ste", left: "skrenite lijevo", right: "skrenite desno", sleft: "blago lijevo", sright: "blago desno",
     shleft: "oštro lijevo", shright: "oštro desno", straight: "nastavite ravno", uturn: "okrenite se", on: "na",
-    shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
+    simPick: "Test: dodirnite kartu da postavite svoju lokaciju", simOn: "Test lokacije uključen. Dodirnite kartu, a marker možete povlačiti.", shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
     credit: "Podaci: javni servis Gradskih groblja Zagreb. Neslužbeno sučelje. Karta: OpenStreetMap, rute: OSRM.",
     rowPlot: (p, c, n) => [p && "polje " + p, c && "razred " + c, n && "broj " + n].filter(Boolean).join(" · "),
   },
@@ -319,7 +319,7 @@ const I18N = {
     arrived: "You have arrived at the grave", end: "End", done: "Done", min: "min", toGrave: "to the grave", steps: "Steps", showSteps: "Show steps", hideSteps: "Hide steps",
     depart: "Head out", arrive: "You have arrived", left: "turn left", right: "turn right", sleft: "bear left", sright: "bear right",
     shleft: "sharp left", shright: "sharp right", straight: "continue straight", uturn: "make a U-turn", on: "onto",
-    shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
+    simPick: "Test: tap the map to set your location", simOn: "Location test on. Tap the map, and drag the marker to walk.", shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
     credit: "Data: public service of Gradska groblja Zagreb. Unofficial interface. Map: OpenStreetMap, routes: OSRM.",
     rowPlot: (p, c, n) => [p && "field " + p, c && "class " + c, n && "no. " + n].filter(Boolean).join(" · "),
   },
@@ -438,6 +438,20 @@ const destOf = r => hasGps(r) ? { lat: r.GPS_N, lon: r.GPS_E, exact: true }
 
 /* ---------- map ---------- */
 
+// Add ?test=1 to the URL to fake your position. Tap the map to place yourself, drag the marker to walk.
+const SIM = new URLSearchParams(location.search).has("test");
+const fix = ll => ({ coords: { latitude: ll[0], longitude: ll[1] } });
+let simPos = null, simMarker = null;
+function setSim(ll) {
+  simPos = [ll.lat ?? ll[0], ll.lng ?? ll[1]];
+  if (!simMarker) {
+    simMarker = L.marker(simPos, { icon: meIcon(), draggable: true, zIndexOffset: 1000, keyboard: false }).addTo(map);
+    simMarker.on("drag", () => { const p = simMarker.getLatLng(); simPos = [p.lat, p.lng]; if (nav) onPos(fix(simPos)); });
+    simMarker.on("dragend", () => { if (nav) onPos(fix(simPos)); });
+  } else simMarker.setLatLng(simPos);
+  if (nav) onPos(fix(simPos));
+}
+
 let map, layerCem, layerResults, layerGrave, layerRoute, meMarker;
 const FLAME = fill => `<svg class="flame" width="32" height="40" viewBox="0 0 24 30"><path d="M12 1c1 5 8 8 8 16a8 8 0 0 1-16 0c0-4 2-6 4-9 1 2 2 3 3 4 1-3 1-7 1-11z" fill="${fill}" stroke="#261a00" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 const flameIcon = exact => L.divIcon({ className: "", html: FLAME(exact ? "#f5a623" : "#c9d3cd"), iconSize: [32, 40], iconAnchor: [16, 39] });
@@ -455,6 +469,7 @@ function initMap() {
   layerRoute = L.layerGroup().addTo(map);
   const labels = () => map.getContainer().classList.toggle("labels", map.getZoom() >= 13);
   map.on("zoomend", labels); labels();
+  if (SIM) { map.on("click", e => setSim(e.latlng)); setTimeout(() => toast(t("simOn")), 600); }
   map.on("dragstart", () => { if (nav) { nav.follow = false; $("#fab").classList.remove("follow"); } });
 }
 
@@ -725,7 +740,8 @@ function stepInfo(s) {
 const endButton = () => el("button", { class: "btn danger", type: "button", onclick: () => { stopNav(); if (S.grave) openGrave(S.grave, { push: false }); } }, t("end"));
 
 function startNav() {
-  if (!navigator.geolocation) { toast(t("locFail")); return; }
+  if (SIM && !simPos) { toast(t("simPick")); return; }
+  if (!SIM && !navigator.geolocation) { toast(t("locFail")); return; }
   stopNav(true);
   nav = { watch: null, route: null, pos: null, lastFetch: 0, fetching: false, follow: true, arrived: false, wake: null, ui: null };
   setMode("nav");
@@ -735,7 +751,8 @@ function startNav() {
     toggle: el("button", { class: "btn ghost stepstoggle", type: "button", hidden: true, onclick: toggleSteps }) };
   show(el("div", { class: "navcard" }, el("div", { class: "eta" }, nav.ui.eta, nav.ui.sub), endButton()), nav.ui.toggle, nav.ui.steps);
   setSnap(0);
-  nav.watch = navigator.geolocation.watchPosition(onPos, e => failNav(e.code === 1 ? t("locDenied") : t("locFail")), { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
+  if (SIM) onPos(fix(simPos));
+  else nav.watch = navigator.geolocation.watchPosition(onPos, e => failNav(e.code === 1 ? t("locDenied") : t("locFail")), { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
   navigator.wakeLock?.request("screen").then(w => { if (nav) nav.wake = w; else w.release(); }).catch(() => {});
 }
 
@@ -772,9 +789,11 @@ async function onPos(p) {
   if (!nav || !S.grave || nav.arrived) return;
   const me = [p.coords.latitude, p.coords.longitude], d = destOf(S.grave), g = [d.lat, d.lon];
   nav.pos = me;
-  if (!meMarker) meMarker = L.marker(me, { icon: meIcon(), zIndexOffset: 1000, keyboard: false }).addTo(map);
-  else meMarker.setLatLng(me);
-  if (nav.follow && nav.route) map.setView(me, Math.max(map.getZoom(), 18), { animate: true });
+  if (!SIM) {
+    if (!meMarker) meMarker = L.marker(me, { icon: meIcon(), zIndexOffset: 1000, keyboard: false }).addTo(map);
+    else meMarker.setLatLng(me);
+  }
+  if (!SIM && nav.follow && nav.route) map.setView(me, Math.max(map.getZoom(), 18), { animate: true });
 
   const straight = hav(me, g), cem = CEMETERIES[S.grave.NAZIV_GROB];
   if (straight > 3000 && (!cem || hav(me, [cem[0], cem[1]]) > 3000)) { failNav(t("far")); return; }
@@ -838,6 +857,7 @@ function renderLive(pr) {
 
 $("#fab").addEventListener("click", () => {
   if (nav) { nav.follow = true; $("#fab").classList.add("follow"); if (nav.pos) map.setView(nav.pos, Math.max(map.getZoom(), 18), { animate: true }); return; }
+  if (SIM) { if (simPos) map.setView(simPos, Math.max(map.getZoom(), 16)); else toast(t("simPick")); return; }
   if (!navigator.geolocation) { toast(t("locFail")); return; }
   navigator.geolocation.getCurrentPosition(p => {
     const me = [p.coords.latitude, p.coords.longitude];
