@@ -534,11 +534,15 @@ function queuedTile(layer, coords, done) {
   let tries = 0, created = false;
   const attempt = () => {
     tileQueue.waiting.push(() => {
-      let freed = false;
-      const finish = () => { if (freed) return; freed = true; tileQueue.running--; pumpTiles(); }; // once per attempt, whatever fires
+      let freed = false, timer;
+      const finish = () => { if (freed) return; freed = true; clearTimeout(timer); tileQueue.running--; pumpTiles(); }; // once per attempt, whatever fires
+      const retry = () => { tileFailed(); if (++tries <= 3) setTimeout(attempt, 1500 * tries); else done(new Error("tile failed"), tile); };
       if (created && !tile.isConnected) { finish(); return; }       // its layer or area left the map while the tile waited
+      // A browser may silently drop a request for an image that left the page, and then neither load nor error fires.
+      // Without this timeout that tile would hold its queue slot forever and, after four of them, no tile would load.
+      timer = setTimeout(() => { tile.onload = tile.onerror = null; finish(); if (tile.isConnected) retry(); }, 15000);
       tile.onload = () => { finish(); done(null, tile); };
-      tile.onerror = () => { finish(); tileFailed(); if (++tries <= 3) setTimeout(attempt, 1500 * tries); else done(new Error("tile failed"), tile); };
+      tile.onerror = () => { finish(); retry(); };
       tile.src = tries ? `${url}&_r=${tries}` : url;
     });
     pumpTiles();
