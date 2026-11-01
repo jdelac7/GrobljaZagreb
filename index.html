@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0f6b5b">
+<title>Pronađi grob | Zagrebačka groblja</title>
+<meta name="description" content="Pronađite grob na zagrebačkim grobljima i pješice stignite do njega. Podaci su javni, iz servisa Gradskih groblja Zagreb.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap&subset=latin-ext">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --surface: #ffffff;
+  --surface-2: #f1f4f3;
+  --ink: #12201d;
+  --muted: #61716d;
+  --line: #e3e9e6;
+  --primary: #0f6b5b;
+  --primary-ink: #ffffff;
+  --primary-soft: #dff0eb;
+  --flame: #f5a623;
+  --danger: #b3261e;
+  --danger-ink: #ffffff;
+  --shadow: 0 2px 10px rgba(10, 30, 26, .18), 0 0 0 1px rgba(10, 30, 26, .04);
+  --font: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sh: 132px;
+  --topH: 130px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a2322; --surface-2: #243130; --ink: #eaf2ef; --muted: #9ab0ab; --line: #2f3f3d;
+    --primary: #45c4a8; --primary-ink: #04211a; --primary-soft: #1f3a34; --flame: #f7b53b; --danger: #f2b8b5; --danger-ink: #410e0b;
+    --shadow: 0 2px 12px rgba(0, 0, 0, .55);
+  }
+  .leaflet-tile-pane { filter: brightness(.72) contrast(1.05) saturate(.7); }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { background: var(--surface-2); color: var(--ink); font: 400 16px/1.45 var(--font); -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.ic { display: inline-flex; width: 24px; height: 24px; flex: none; }
+.ic svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+#map { position: fixed; inset: 0; background: var(--surface-2); }
+.leaflet-tile-pane { filter: saturate(.8); }
+
+/* top: search + chips */
+#top { position: fixed; z-index: 1000; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: grid; gap: 8px; }
+.searchrow { display: flex; gap: 8px; }
+.pill {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 6px 0 16px;
+  background: var(--surface); border-radius: 27px; box-shadow: var(--shadow);
+}
+.pill .ic { color: var(--muted); }
+.pill input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; font-size: 1.05rem; font-weight: 500; outline: none; }
+.pill input::-webkit-search-cancel-button, .pill input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+.pill input::placeholder { color: var(--muted); font-weight: 400; }
+.pill:focus-within { box-shadow: var(--shadow), 0 0 0 2px var(--primary); }
+.round { width: 54px; height: 54px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center; font-weight: 700; font-size: .95rem; flex: none; }
+.pill .round { width: 44px; height: 44px; box-shadow: none; background: none; color: var(--muted); }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 6px; margin: 0 -2px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; height: 40px; padding: 0 14px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow);
+  font-weight: 600; font-size: .92rem; display: inline-flex; align-items: center; gap: 6px; max-width: 70vw;
+}
+.chip.on { background: var(--primary); color: var(--primary-ink); }
+select.chip { appearance: none; -webkit-appearance: none; padding-right: 30px; text-overflow: ellipsis;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E") right 12px center no-repeat; }
+select.chip.on { background-color: var(--primary); }
+select.chip option { color: #12201d; background: #fff; }
+#yearpop { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 14px; display: grid; gap: 12px; }
+#yearpop .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#yearpop label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+#yearpop input { height: 48px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 0 12px; font-size: 1.1rem; width: 100%; }
+#yearpop .acts { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* buttons */
+.btn { min-height: 48px; padding: 0 20px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; background: var(--surface-2); text-decoration: none; color: var(--ink); }
+.btn.primary { background: var(--primary); color: var(--primary-ink); }
+.btn.danger { background: var(--danger); color: var(--danger-ink); }
+.btn.ghost { background: none; color: var(--primary); }
+.btn[disabled] { opacity: .55; }
+
+/* bottom sheet */
+#sheet {
+  position: fixed; z-index: 900; left: 0; right: 0; bottom: 0; height: var(--sh);
+  background: var(--surface); border-radius: 24px 24px 0 0; box-shadow: 0 -4px 24px rgba(10, 30, 26, .22);
+  display: flex; flex-direction: column; transition: height .26s cubic-bezier(.2, .8, .2, 1);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#sheet.dragging { transition: none; }
+#grab { height: 28px; flex: none; display: grid; place-items: center; touch-action: none; cursor: grab; }
+#grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
+#sheetbody { flex: 1; scrollbar-width: thin; overflow-y: auto; overscroll-behavior: contain; padding: 0 0 24px; }
+.pad { padding: 0 20px; }
+.h1 { font-weight: 700; font-size: 1.5rem; line-height: 1.15; letter-spacing: -.01em; margin: 0; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.sec { font-weight: 700; font-size: 1.05rem; margin: 22px 20px 4px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.row { width: 100%; text-align: left; display: flex; align-items: center; gap: 14px; padding: 12px 20px; min-height: 72px; }
+.row:active { background: var(--primary-soft); }
+@media (hover: hover) { .row:hover { background: var(--surface-2); } }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-weight: 700; display: grid; place-items: center; flex: none; letter-spacing: .02em; }
+.row .tx { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.row .nm { font-weight: 700; font-size: 1.08rem; line-height: 1.2; }
+.row .yr { color: var(--muted); font-size: .92rem; }
+.row .pl { color: var(--primary); font-weight: 600; font-size: .92rem; }
+.row .chev { color: var(--muted); }
+.warn { color: #9a6200; font-weight: 600; font-size: .85rem; }
+@media (prefers-color-scheme: dark) { .warn { color: var(--flame); } }
+.note { margin: 10px 20px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); font-size: .92rem; }
+.empty { padding: 20px; text-align: center; color: var(--muted); }
+.empty b { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: 4px; }
+.skel { height: 72px; margin: 6px 20px; border-radius: 14px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: sh 1.2s infinite linear; }
+@keyframes sh { to { background-position: -200% 0; } }
+
+/* detail */
+.dhead { display: flex; align-items: flex-start; gap: 10px; padding: 0 12px 0 20px; }
+.dhead > div { flex: 1; min-width: 0; padding-top: 4px; }
+.x { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; flex: none; }
+.acts { display: flex; gap: 8px; padding: 14px 20px 6px; overflow-x: auto; scrollbar-width: none; }
+.acts::-webkit-scrollbar { display: none; }
+.acts .btn { flex: none; }
+.acts .btn.primary { flex: 1 0 auto; min-width: 180px; }
+.info { margin: 10px 0 0; }
+.irow { display: flex; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); align-items: flex-start; }
+.irow > .ic { color: var(--primary); margin-top: 2px; }
+.irow .v { font-weight: 600; }
+.irow .s { color: var(--muted); font-size: .92rem; }
+.plot { display: flex; margin-top: 4px; }
+.plot div { padding-right: 20px; margin-right: 20px; border-right: 1px solid var(--line); }
+.plot div:last-child { border: 0; margin: 0; padding: 0; }
+.plot b { display: block; font-size: 1.9rem; line-height: 1.05; font-weight: 700; letter-spacing: -.01em; }
+.plot span { color: var(--muted); font-size: .85rem; }
+.links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.links a, .links .btn { min-height: 40px; padding: 0 14px; border-radius: 20px; background: var(--surface-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .92rem; color: var(--ink); }
+
+/* navigation */
+#navbar { position: fixed; z-index: 1000; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: none;
+  background: var(--primary); color: var(--primary-ink); border-radius: 20px; padding: 14px 16px; gap: 14px; align-items: center; box-shadow: var(--shadow); }
+body[data-mode=nav] #navbar { display: flex; }
+body[data-mode=nav] #top { display: none; }
+#navbar .arr { width: 48px; height: 48px; flex: none; transition: transform .3s; }
+#navbar .arr svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#navbar .d { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+#navbar .t { font-size: 1.02rem; opacity: .92; line-height: 1.25; }
+.navcard { display: flex; align-items: center; gap: 12px; padding: 0 20px; }
+.navcard .eta { flex: 1; }
+.navcard .eta b { font-size: 1.6rem; font-weight: 700; }
+.navcard .eta span { display: block; color: var(--muted); font-size: .92rem; }
+.stepstoggle { margin: 4px 8px 0; }
+ol.steps { list-style: none; margin: 8px 0 0; padding: 0; }
+ol.steps li { display: flex; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line); }
+ol.steps li.now { background: var(--primary-soft); font-weight: 600; }
+ol.steps li span:last-child { color: var(--muted); white-space: nowrap; }
+
+#fab { position: fixed; z-index: 850; right: 12px; bottom: calc(var(--sh) + 14px); transition: bottom .26s cubic-bezier(.2, .8, .2, 1); color: var(--primary); }
+#fab.follow { background: var(--primary); color: var(--primary-ink); }
+body[data-snap="2"] #fab { opacity: 0; pointer-events: none; }
+#toast { position: fixed; z-index: 1200; left: 50%; bottom: calc(var(--sh) + 24px); transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 22px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 88vw; }
+#toast.on { opacity: 1; }
+
+/* map markers */
+.flame { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
+.dot { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); border: 3px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); }
+.cempin { display: flex; align-items: center; gap: 6px; white-space: nowrap; transform: translate(-10px, -10px); }
+.cempin i { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); border: 3px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); flex: none; }
+.cempin span { background: var(--surface); color: var(--ink); font-weight: 700; font-size: .8rem; padding: 3px 9px; border-radius: 12px; box-shadow: var(--shadow); display: none; }
+.labels .cempin span { display: inline; }
+.me { width: 20px; height: 20px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(26, 115, 232, .25); }
+.leaflet-control-attribution { font-size: 10px; }
+
+/* desktop: side panel */
+@media (min-width: 801px) {
+  #top { left: 16px; right: auto; width: 408px; top: 16px; }
+  #sheet { left: 16px; right: auto; width: 408px; top: calc(var(--topH) + 24px); bottom: 16px; height: auto; border-radius: 20px; transition: none; padding-bottom: 0; box-shadow: var(--shadow); }
+  #grab { display: none; }
+  #sheetbody { padding-top: 14px; }
+  #fab { bottom: 110px; right: 16px; transition: none; }
+  #toast { bottom: 28px; left: calc(50% + 220px); }
+  #navbar { left: 16px; right: auto; width: 408px; top: 16px; }
+  body[data-mode=nav] #sheet { top: auto; max-height: calc(100dvh - 130px); }
+  .leaflet-right .leaflet-control { margin-right: 16px; }
+}
+@media (max-width: 800px) {
+  .leaflet-control-zoom { display: none; }
+  body[data-mode=detail] #top { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body data-mode="home" data-snap="0">
+
+<div id="map"></div>
+
+<div id="top">
+  <div class="searchrow">
+    <form id="sf" class="pill" role="search">
+      <span class="ic" data-ic="search"></span>
+      <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="words" spellcheck="false">
+      <button type="button" class="round" id="clear" hidden><span class="ic" data-ic="close"></span></button>
+    </form>
+    <button type="button" class="round" id="lang">EN</button>
+  </div>
+  <div class="chips">
+    <select class="chip" id="cem" aria-label="Groblje"><option value="%"></option></select>
+    <button type="button" class="chip" id="yearchip"></button>
+  </div>
+  <div id="yearpop" hidden>
+    <div class="two">
+      <label><span data-i="from"></span><input id="yfrom" inputmode="numeric" maxlength="4" placeholder="1990"></label>
+      <label><span data-i="to"></span><input id="yto" inputmode="numeric" maxlength="4" placeholder="2024"></label>
+    </div>
+    <div class="acts">
+      <button type="button" class="btn ghost" id="yclear" data-i="clear"></button>
+      <button type="button" class="btn primary" id="yapply" data-i="apply"></button>
+    </div>
+  </div>
+</div>
+
+<div id="navbar" role="status" aria-live="polite">
+  <div class="arr" id="navarr"></div>
+  <div><div class="d" id="navd"></div><div class="t" id="navt"></div></div>
+</div>
+
+<button type="button" class="round" id="fab"><span class="ic" data-ic="locate"></span></button>
+<div id="toast" role="status"></div>
+
+<section id="sheet" aria-label="Rezultati">
+  <div id="grab" role="button" tabindex="0"><span></span></div>
+  <div id="sheetbody"></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+
+const API = "https://www.axiomgis.com/Zagreb/Trazilica.svc";
+const ROUTE_API = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
+
+/* Center point and address of each cemetery, taken from the original site's own map config. */
+const CEMETERIES = {
+  "MIROGOJ": [45.838, 15.9855, "Mirogoj", "Aleja Hermanna Bollea 27, 10000 Zagreb"],
+  "GAJ URNI": [45.84485, 15.985, "Gaj urni i krematorij", "Remetska cesta bb, 10000 Zagreb"],
+  "MIROŠEVAC": [45.8448, 16.0416, "Miroševac", "Mramorni prilaz bb, 10040 Zagreb"],
+  "MARK.POLJE": [45.86, 16.1246, "Markovo Polje", "Aleja mira bb, 10360 Sesvete"],
+  "STENJEVEC": [45.810906, 15.888139, "Stenjevec", "Samoborska cesta 90, 10000 Zagreb"],
+  "G.VRAPČE": [45.82875, 15.908645, "Gornje Vrapče", "Petraščak bb, 10000 Zagreb"],
+  "REMETE": [45.852759, 15.988077, "Remete", "Pavlinski prilaz bb, 10000 Zagreb"],
+  "MARKUŠEVEC": [45.873673, 16.013006, "Markuševec", "Markuševečka cesta bb, 10000 Zagreb"],
+  "ŠESTINE": [45.853952, 15.949744, "Šestine", "Šestinski trg 10, 10000 Zagreb"],
+  "GRAČANI": [45.854849, 15.970842, "Gračani", "Isce bb, 10000 Zagreb"],
+  "RESNIK": [45.8028, 16.0882, "Resnik", "Resnik 1, 10000 Zagreb"],
+  "JAKUŠEVEC": [45.757783, 16.019251, "Jakuševec", "Jakuševečka bb, 10020 Zagreb"],
+  "ODRA": [45.727184, 15.992724, "Odra", "Sv. Izidora bb, 10020 Zagreb"],
+  "SV.KLARA": [45.755952, 15.972229, "Sv. Klara", "Mrkšina 64, 10020 Zagreb"],
+  "LUČKO": [45.75963, 15.882858, "Lučko", "Sijačevo šetalište bb, 10250 Lučko"],
+  "ČUČERJE": [45.892987, 16.057174, "Čučerje", "Trg Sv. Marije Čučerske 2, 10000 Zagreb"],
+  "GRANEŠINA": [45.850306, 16.050025, "Granešina", "Miroševečka cesta bb, 10000 Zagreb"],
+  "ST.SESVETE": [45.829392, 16.111966, "Stare Sesvete", "Kašinska, 10360 Sesvete"],
+  "CERJE": [45.828058, 16.190198, "Cerje", "Cerska, 10360 Cerje"],
+  "BREZOVICA": [45.732359, 15.89611, "Brezovica", "Golobreška bb, 10251 Goli Breg"],
+  "K.KRALJEVEC": [45.668749, 15.858553, "Kupinečki Kraljevec", "Mirna bb, 10251 Kupinečki Kraljevec"],
+  "KAŠINA": [45.909194, 16.12109, "Kašina", "Vinogradska bb, 10362 Kašina"],
+  "VUGROVEC DONJI": [45.882142, 16.103505, "Vugrovec Donji", "Kocil brijeg bb, 10360 Vugrovec Donji"],
+  "PLANINA DONJA": [45.93055, 16.0891, "Planina Donja", "Frana Galovića, 10362 Planina Donja"],
+  "GLAVNICA DONJA": [45.931364, 16.153208, "Glavnica Donja", "Glavnička cesta bb, 10363 Glavnica Gornja"],
+  "MORAVČE": [45.932749, 16.170907, "Moravče", "Prigorska bb, 10363 Moravče"],
+};
+
+const I18N = {
+  hr: {
+    ph: "Ime i prezime, npr. Ivan Horvat", allCem: "Sva groblja", year: "Godina smrti", from: "Od", to: "Do", apply: "Primijeni", clear: "Očisti",
+    homeTitle: "Pronađite grob", homeSub: "Upišite ime i prezime ili odaberite groblje.", cems: "Groblja",
+    count: n => n + (n === 1 ? " rezultat" : " rezultata"),
+    capped: "Prikazano je prvih 100. Dodajte ime, groblje ili godinu smrti da suzite pretragu.",
+    none: "Nema rezultata", noneSub: "Provjerite pravopis ili probajte samo prezime. Dovoljan je i početak prezimena.",
+    failed: "Servis groblja ne odgovara", failedSub: "Pokušajte ponovno za nekoliko minuta.", retry: "Pokušaj ponovno",
+    died: "Umro/la", buried: "Ukopan/a", born: "Rođen/a", age: "Starost", yrs: "god.", diedShort: "umro/la",
+    noGps: "Bez točne lokacije", close: "Zatvori",
+    place: "Grobno mjesto", field: "Polje", cls: "Razred", num: "Broj", section: "Odjel",
+    approx: "Točna lokacija groba nije u bazi. Karta prikazuje groblje. Polje i broj potražite na oznakama u groblju.",
+    walk: "Pješice do groba", drive: "Autom", share: "Podijeli", copy: "Kopiraj", openIn: "Otvori u",
+    cemHint: "Upišite ime iznad da pretražite ovo groblje.", driveTo: "Autom do groblja",
+    locating: "Tražim vašu lokaciju...", locDenied: "Pristup lokaciji je odbijen. Uključite ga u postavkama preglednika.",
+    locFail: "Lokaciju nije moguće odrediti.", routeFail: "Ruta nije dostupna. Otvorite grob u Google ili Apple kartama.",
+    far: "Predaleko ste od groblja za pješačku navigaciju. Dovezite se do ulaza pa pokrenite navigaciju.",
+    arrived: "Stigli ste do groba", end: "Završi", done: "Gotovo", min: "min", toGrave: "do groba", steps: "Koraci", showSteps: "Prikaži korake", hideSteps: "Sakrij korake",
+    depart: "Krenite", arrive: "Stigli ste", left: "skrenite lijevo", right: "skrenite desno", sleft: "blago lijevo", sright: "blago desno",
+    shleft: "oštro lijevo", shright: "oštro desno", straight: "nastavite ravno", uturn: "okrenite se", on: "na",
+    shared: "Poveznica kopirana", copiedC: "Koordinate kopirane", me: "Moja lokacija",
+    credit: "Podaci: javni servis Gradskih groblja Zagreb. Neslužbeno sučelje. Karta: OpenStreetMap, rute: OSRM.",
+    rowPlot: (p, c, n) => [p && "polje " + p, c && "razred " + c, n && "broj " + n].filter(Boolean).join(" · "),
+  },
+  en: {
+    ph: "Name, e.g. Ivan Horvat", allCem: "All cemeteries", year: "Year of death", from: "From", to: "To", apply: "Apply", clear: "Clear",
+    homeTitle: "Find a grave", homeSub: "Type a name or pick a cemetery.", cems: "Cemeteries",
+    count: n => n + (n === 1 ? " result" : " results"),
+    capped: "Showing the first 100. Add a first name, cemetery or year of death to narrow it down.",
+    none: "No results", noneSub: "Check the spelling or try the surname only. The start of a surname is enough.",
+    failed: "The cemetery service is not responding", failedSub: "Try again in a few minutes.", retry: "Try again",
+    died: "Died", buried: "Buried", born: "Born", age: "Age", yrs: "yrs", diedShort: "died",
+    noGps: "No exact location", close: "Close",
+    place: "Grave location", field: "Field", cls: "Class", num: "Number", section: "Section",
+    approx: "The exact grave position is not in the database. The map shows the cemetery. Use the field and number signs inside to find the plot.",
+    walk: "Walk to the grave", drive: "Drive", share: "Share", copy: "Copy", openIn: "Open in",
+    cemHint: "Type a name above to search this cemetery.", driveTo: "Drive to the cemetery",
+    locating: "Finding your location...", locDenied: "Location access was denied. Enable it in your browser settings.",
+    locFail: "Could not determine your location.", routeFail: "Route unavailable. Open the grave in Google or Apple Maps.",
+    far: "You are too far from the cemetery for walking directions. Drive to the entrance, then start navigation.",
+    arrived: "You have arrived at the grave", end: "End", done: "Done", min: "min", toGrave: "to the grave", steps: "Steps", showSteps: "Show steps", hideSteps: "Hide steps",
+    depart: "Head out", arrive: "You have arrived", left: "turn left", right: "turn right", sleft: "bear left", sright: "bear right",
+    shleft: "sharp left", shright: "sharp right", straight: "continue straight", uturn: "make a U-turn", on: "onto",
+    shared: "Link copied", copiedC: "Coordinates copied", me: "My location",
+    credit: "Data: public service of Gradska groblja Zagreb. Unofficial interface. Map: OpenStreetMap, routes: OSRM.",
+    rowPlot: (p, c, n) => [p && "field " + p, c && "class " + c, n && "no. " + n].filter(Boolean).join(" · "),
+  },
+};
+
+let lang = "hr";
+try { if (localStorage.getItem("lang") === "en") lang = "en"; } catch {}
+const t = k => I18N[lang][k] ?? I18N.hr[k] ?? k;
+
+/* ---------- helpers ---------- */
+
+const ICONS = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  nav: '<path d="M3 11 21 3l-8 18-2-8z"/>',
+  car: '<path d="M4 15v-3l2-5h12l2 5v3M4 15h16v3H4zM7.5 15h.01M16.5 15h.01"/>',
+  share: '<path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  pin: '<path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  chev: '<path d="m9 6 6 6-6 6"/>',
+  locate: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>',
+  arrow: '<path d="M12 20V4M12 4l-6 6M12 4l6 6"/>',
+  flag: '<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>',
+};
+const svg = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+const ic = n => { const s = document.createElement("span"); s.className = "ic"; s.innerHTML = svg(n); return s; };
+
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c instanceof Node ? c : document.createTextNode(c));
+  return n;
+};
+function toast(msg) {
+  const n = $("#toast"); n.textContent = msg; n.classList.add("on");
+  clearTimeout(toast.t); toast.t = setTimeout(() => n.classList.remove("on"), 2200);
+}
+const isMobile = () => matchMedia("(max-width: 800px)").matches;
+
+/* ---------- API ---------- */
+
+// The service ignores diacritics, and "Š" in the query returns nothing, so strip them first.
+const fold = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").trim().replace(/'/g, "''");
+
+async function getJson(url, signal) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 25000);
+  signal?.addEventListener("abort", () => ctl.abort());
+  try {
+    const r = await fetch(url, { headers: { Accept: "application/json" }, signal: ctl.signal });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+
+function searchOnce(ime, prezime, cem, from, to, signal) {
+  const q = s => "'" + encodeURIComponent(fold(s)) + "%25'";
+  const url = `${API}/PvWebUkopani?ime=${q(ime)}&prezime=${q(prezime)}`
+    + `&groblje='${cem === "%" ? "%25" : encodeURIComponent(cem)}'`
+    + `&godina_od=${parseInt(from, 10) || 1750}&godina_do=${parseInt(to, 10) || 2100}`;
+  return getJson(url, signal).then(d => d.value);
+}
+
+// "Ivan Horvat" is tried as first name + surname. Only if that finds nobody does "Horvat Ivan" get tried as surname + first name.
+// One word is a surname. Longer input tries every first/last split (double surnames, two first names).
+function splits(text) {
+  const w = text.trim().split(/\s+/).filter(Boolean);
+  if (w.length === 1) return { primary: [["", w[0]]], swapped: [] };
+  const primary = [], swapped = [];
+  for (let k = 1; k < w.length; k++) {
+    primary.push([w.slice(0, k).join(" "), w.slice(k).join(" ")]);
+    swapped.push([w.slice(k).join(" "), w.slice(0, k).join(" ")]);
+  }
+  return { primary: primary.slice(0, 3), swapped: swapped.slice(0, 3) };
+}
+
+async function runSearch(text, cem, from, to, signal) {
+  const { primary, swapped } = splits(text);
+  const run = list => Promise.all(list.map(([i, p]) => searchOnce(i, p, cem, from, to, signal)));
+  let parts = await run(primary);
+  if (!parts.some(r => r.length) && swapped.length) parts = await run(swapped);
+  const seen = new Map();
+  for (const rows of parts) for (const r of rows) seen.set(r.SYNC_GUID, r);
+  return { rows: [...seen.values()], capped: parts.some(r => r.length >= 100) };
+}
+
+async function loadGrave(guid) {
+  const d = await getJson(`${API}/V_WEB_UKOPANI?$filter=SYNC_GUID eq guid'${encodeURIComponent(guid)}'`);
+  return d.value[0];
+}
+
+/* ---------- formatting ---------- */
+
+const cemLabel = n => CEMETERIES[n]?.[2] ?? titleCase(n);
+function titleCase(s) { return (s || "").toLowerCase().replace(/(^|[\s.\-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()); }
+const nameOf = r => titleCase([r.COMP_IME_OSOB ?? r.IME_OSOB, r.COMP_PREZIME_OSOB ?? r.PREZIME_OSOB].filter(Boolean).join(" "))
+  + (r.DJEV_PREZIME_OSOB ? ` (${titleCase(r.DJEV_PREZIME_OSOB)})` : "");
+const initials = r => ((r.COMP_IME_OSOB || r.IME_OSOB || "?")[0] + (r.COMP_PREZIME_OSOB || r.PREZIME_OSOB || "")[0]).toUpperCase();
+const fmtDate = d => new Date(d.slice(0, 10) + "T12:00:00").toLocaleDateString(lang === "hr" ? "hr-HR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+const isJan1 = d => d && d.slice(5, 10) === "01-01";
+function yearsOf(r) {
+  const born = r.DATUM_RODJENJA ? new Date(r.DATUM_RODJENJA).getFullYear() : null;
+  const died = r.COMP_GODINA_SMRTI ?? (r.DATUM_SMRTI ? new Date(r.DATUM_SMRTI).getFullYear() : null);
+  if (born && died) return `${born} – ${died}`;
+  return died ? `${t("diedShort")} ${died}` : "";
+}
+const hasGps = r => r.GPS_N != null && r.GPS_E != null && Math.abs(r.GPS_N) > 1;
+const destOf = r => hasGps(r) ? { lat: r.GPS_N, lon: r.GPS_E, exact: true }
+  : CEMETERIES[r.NAZIV_GROB] ? { lat: CEMETERIES[r.NAZIV_GROB][0], lon: CEMETERIES[r.NAZIV_GROB][1], exact: false } : null;
+
+/* ---------- map ---------- */
+
+let map, layerCem, layerResults, layerGrave, layerRoute, meMarker;
+const FLAME = fill => `<svg class="flame" width="32" height="40" viewBox="0 0 24 30"><path d="M12 1c1 5 8 8 8 16a8 8 0 0 1-16 0c0-4 2-6 4-9 1 2 2 3 3 4 1-3 1-7 1-11z" fill="${fill}" stroke="#261a00" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+const flameIcon = exact => L.divIcon({ className: "", html: FLAME(exact ? "#f5a623" : "#c9d3cd"), iconSize: [32, 40], iconAnchor: [16, 39] });
+const meIcon = () => L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+
+function initMap() {
+  map = L.map("map", { zoomControl: false, attributionControl: true }).setView([45.815, 15.98], 11);
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(map);
+  layerCem = L.layerGroup().addTo(map);
+  layerResults = L.layerGroup().addTo(map);
+  layerGrave = L.layerGroup().addTo(map);
+  layerRoute = L.layerGroup().addTo(map);
+  const labels = () => map.getContainer().classList.toggle("labels", map.getZoom() >= 13);
+  map.on("zoomend", labels); labels();
+  map.on("dragstart", () => { if (nav) { nav.follow = false; $("#fab").classList.remove("follow"); } });
+}
+
+function drawCemeteries() {
+  layerCem.clearLayers();
+  for (const [key, c] of Object.entries(CEMETERIES)) {
+    L.marker([c[0], c[1]], {
+      icon: L.divIcon({ className: "", html: `<div class="cempin"><i></i><span>${c[2]}</span></div>`, iconSize: [20, 20], iconAnchor: [0, 0] }),
+      title: c[2], keyboard: false,
+    }).on("click", () => selectCemetery(key)).addTo(layerCem);
+  }
+}
+
+// Fit bounds into the part of the map not covered by the search bar, sheet or side panel.
+// No animation on purpose. Leaflet finishes an animated zoom 250 ms later and would undo a fit made in that window.
+function fit(bounds, maxZoom = 19) {
+  const mob = isMobile();
+  const topPad = S.mode === "detail" ? 40 : S.mode === "nav" ? 120 : ($("#top").offsetHeight || 120) + 24;
+  const tl = mob ? [16, topPad] : [440, 40];
+  const br = mob ? [16, sheetPx() + 16] : [40, 40];
+  map.fitBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, maxZoom, animate: false });
+}
+const fitPoint = (lat, lon, meters = 70) => fit(L.latLng(lat, lon).toBounds(meters));
+
+/* ---------- bottom sheet ---------- */
+
+const sheet = $("#sheet"), body = $("#sheetbody");
+let snaps = [132, 400, 700], snapIdx = 0;
+function computeSnaps() { const H = innerHeight; snaps = [132, Math.round(H * .5), H - 128]; }
+const sheetPx = () => isMobile() ? snaps[snapIdx] : 0;
+function setSnap(i) {
+  computeSnaps(); snapIdx = Math.max(0, Math.min(2, i));
+  document.body.dataset.snap = snapIdx;
+  document.documentElement.style.setProperty("--sh", snaps[snapIdx] + "px");
+}
+addEventListener("resize", () => setSnap(snapIdx));
+new ResizeObserver(() => document.documentElement.style.setProperty("--topH", $("#top").offsetHeight + "px")).observe($("#top"));
+
+(function dragSetup() {
+  const grab = $("#grab"); let d = null;
+  grab.addEventListener("pointerdown", e => { d = { y: e.clientY, h: snaps[snapIdx], t: performance.now(), moved: 0 }; grab.setPointerCapture(e.pointerId); sheet.classList.add("dragging"); });
+  grab.addEventListener("pointermove", e => {
+    if (!d) return;
+    d.moved = Math.max(d.moved, Math.abs(d.y - e.clientY));
+    const h = Math.max(snaps[0] - 20, Math.min(snaps[2], d.h + d.y - e.clientY));
+    document.documentElement.style.setProperty("--sh", h + "px");
+  });
+  const end = e => {
+    if (!d) return;
+    sheet.classList.remove("dragging");
+    const dy = d.y - e.clientY, v = dy / Math.max(1, performance.now() - d.t);
+    let i;
+    if (d.moved < 6) i = (snapIdx + 1) % 3;
+    else if (Math.abs(v) > .5) i = snapIdx + (v > 0 ? 1 : -1);
+    else { const h = d.h + dy; i = snaps.reduce((b, s, k) => Math.abs(s - h) < Math.abs(snaps[b] - h) ? k : b, 0); }
+    d = null; setSnap(i);
+  };
+  grab.addEventListener("pointerup", end); grab.addEventListener("pointercancel", end);
+  grab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSnap((snapIdx + 1) % 3); } });
+})();
+
+function show(...nodes) { body.replaceChildren(...nodes.flat().filter(Boolean)); body.scrollTop = 0; }
+
+/* ---------- state & views ---------- */
+
+const S = { mode: "home", rows: [], capped: false, text: "", cem: "%", from: "", to: "", grave: null, key: "" };
+let nav = null;
+const setMode = m => { S.mode = m; document.body.dataset.mode = m; };
+
+function renderHome() {
+  setMode("home"); S.grave = null;
+  layerResults.clearLayers(); layerGrave.clearLayers(); layerRoute.clearLayers(); drawCemeteries();
+  show(
+    el("div", { class: "pad" }, el("h2", { class: "h1" }, t("homeTitle")), el("p", { class: "sub" }, t("homeSub"))),
+    el("div", { class: "sec" }, t("cems")),
+    el("ul", { class: "list" }, Object.entries(CEMETERIES).map(([k, c]) => el("li", {},
+      el("button", { class: "row", type: "button", onclick: () => selectCemetery(k) },
+        el("span", { class: "avatar" }, ic("pin")),
+        el("span", { class: "tx" }, el("span", { class: "nm" }, c[2]), el("span", { class: "yr" }, c[3])),
+        el("span", { class: "chev" }, ic("chev")))))),
+    el("p", { class: "pad sub", style: "font-size:.8rem;margin-top:18px" }, t("credit")));
+  setSnap(0);
+  fit(L.latLngBounds(Object.values(CEMETERIES).slice(0, 12).map(c => [c[0], c[1]])), 13);
+}
+
+function selectCemetery(key) {
+  S.cem = key; $("#cem").value = key; updateChips();
+  if ($("#q").value.trim().length >= 2) { doSearch(); return; }
+  showCemetery(key);
+}
+
+function showCemetery(key) {
+  const c = CEMETERIES[key];
+  if (!c) { renderHome(); writeHash(); return; }
+  setMode("cemetery");
+  layerResults.clearLayers(); layerGrave.clearLayers(); layerRoute.clearLayers(); drawCemeteries();
+  show(
+    el("div", { class: "pad" }, el("h2", { class: "h1" }, "Groblje " + c[2]), el("p", { class: "sub" }, c[3])),
+    el("div", { class: "acts" }, el("a", { class: "btn primary", href: driveUrl(key), target: "_blank", rel: "noopener" }, ic("car"), t("driveTo"))),
+    el("div", { class: "note" }, t("cemHint")));
+  setSnap(1);
+  fitPoint(c[0], c[1], 900);
+  writeHash();
+}
+
+let searchCtl, searchTimer;
+async function doSearch() {
+  const text = $("#q").value.trim();
+  S.text = text; S.cem = $("#cem").value; S.from = $("#yfrom").value.trim(); S.to = $("#yto").value.trim();
+  searchCtl?.abort();
+  if (text.length < 2) { S.rows = []; S.key = ""; if (S.cem !== "%") showCemetery(S.cem); else { renderHome(); writeHash(); } return; }
+  searchCtl = new AbortController();
+  const signal = searchCtl.signal;
+  stopNav(true);
+  setMode("results"); S.grave = null;
+  layerGrave.clearLayers(); layerRoute.clearLayers(); layerCem.clearLayers();
+  show(el("div", { class: "skel" }), el("div", { class: "skel" }), el("div", { class: "skel" }));
+  setSnap(1);
+  writeHash();
+  const key = JSON.stringify([text, S.cem, S.from, S.to]);
+  try {
+    const { rows, capped } = await runSearch(text, S.cem, S.from, S.to, signal);
+    rows.sort((a, b) => (a.COMP_PREZIME_OSOB || "").localeCompare(b.COMP_PREZIME_OSOB || "", "hr")
+      || (a.COMP_IME_OSOB || "").localeCompare(b.COMP_IME_OSOB || "", "hr")
+      || (b.COMP_GODINA_SMRTI || 0) - (a.COMP_GODINA_SMRTI || 0));
+    S.rows = rows; S.capped = capped; S.key = key;
+    renderResults(); pinResults(true);
+  } catch (e) {
+    if (signal.aborted) return;
+    show(el("div", { class: "empty" }, el("b", {}, t("failed")), t("failedSub"),
+      el("div", { style: "margin-top:14px" }, el("button", { class: "btn primary", type: "button", onclick: () => doSearch() }, t("retry")))));
+  }
+}
+
+function renderResults() {
+  const rows = S.rows;
+  if (!rows.length) { show(el("div", { class: "empty" }, el("b", {}, t("none")), t("noneSub"))); return; }
+  show(
+    el("div", { class: "pad sub", style: "font-weight:600;margin-bottom:4px" }, t("count")(rows.length)),
+    S.capped ? el("div", { class: "note" }, t("capped")) : null,
+    el("ul", { class: "list" }, rows.map(r => el("li", {},
+      el("button", { class: "row", type: "button", onclick: () => openGrave(r) },
+        el("span", { class: "avatar" }, initials(r)),
+        el("span", { class: "tx" },
+          el("span", { class: "nm" }, nameOf(r)),
+          el("span", { class: "yr" }, yearsOf(r)),
+          el("span", { class: "pl" }, cemLabel(r.NAZIV_GROB) + " · " + t("rowPlot")(r.KRATICA_PGRMJ, r.KRATICA_RGRMJ, r.BROJ_GRMJ)),
+          hasGps(r) ? null : el("span", { class: "warn" }, t("noGps"))),
+        el("span", { class: "chev" }, ic("chev")))))));
+}
+
+function pinResults(refit) {
+  layerResults.clearLayers();
+  const pts = [];
+  S.rows.forEach(r => {
+    if (!hasGps(r)) return;
+    pts.push([r.GPS_N, r.GPS_E]);
+    L.marker([r.GPS_N, r.GPS_E], { icon: L.divIcon({ className: "", html: '<div class="dot"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }), title: nameOf(r), keyboard: false })
+      .on("click", () => openGrave(r)).addTo(layerResults);
+  });
+  if (refit && pts.length) fit(L.latLngBounds(pts), 17);
+}
+
+/* ---------- grave detail ---------- */
+
+function driveUrl(key) {
+  const c = CEMETERIES[key];
+  return c ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent("Groblje " + c[2] + ", " + c[3])}&travelmode=driving` : "#";
+}
+
+function openGrave(r, { push = true } = {}) {
+  stopNav(true);
+  const wasDetail = S.mode === "detail";
+  S.grave = r; setMode("detail");
+  if (push) writeHash(r.SYNC_GUID, !wasDetail);
+  layerResults.clearLayers(); layerCem.clearLayers(); layerGrave.clearLayers(); layerRoute.clearLayers();
+  const d = destOf(r), cem = CEMETERIES[r.NAZIV_GROB];
+
+  const facts = [];
+  if (r.DATUM_RODJENJA) facts.push([t("born"), isJan1(r.DATUM_RODJENJA) ? r.DATUM_RODJENJA.slice(0, 4) : fmtDate(r.DATUM_RODJENJA)]);
+  const died = r.DATUM_SMRTI || r.COMP_DATUM_SMRTI;
+  if (died) facts.push([t("died"), isJan1(died) && !r.DATUM_SMRTI ? died.slice(0, 4) : fmtDate(died)]);
+  if (r.DATUM_UKOPA) facts.push([t("buried"), fmtDate(r.DATUM_UKOPA)]);
+  if (r.STAROST_GODINA) facts.push([t("age"), `${r.STAROST_GODINA} ${t("yrs")}`]);
+
+  const plotCell = (v, l) => v ? el("div", {}, el("b", {}, v), el("span", {}, l)) : null;
+  const ll = d && `${d.lat},${d.lon}`;
+  const btn = (cls, icon, label, fn) => el("button", { class: "btn " + cls, type: "button", onclick: fn }, ic(icon), label);
+
+  show(
+    el("div", { class: "dhead" },
+      el("div", {}, el("h2", { class: "h1" }, nameOf(r)), el("p", { class: "sub" }, [yearsOf(r), cemLabel(r.NAZIV_GROB)].filter(Boolean).join(" · "))),
+      el("button", { class: "x", type: "button", "aria-label": t("close"), onclick: closeGrave }, ic("close"))),
+    el("div", { class: "acts" },
+      d ? btn("primary", "nav", t("walk"), startNav) : null,
+      el("a", { class: "btn", href: driveUrl(r.NAZIV_GROB), target: "_blank", rel: "noopener" }, ic("car"), t("drive")),
+      btn("", "share", t("share"), shareGrave)),
+    el("div", { class: "info" },
+      el("div", { class: "irow" }, ic("flag"), el("div", {},
+        el("div", { class: "s" }, t("place")),
+        el("div", { class: "plot" }, plotCell(r.KRATICA_PGRMJ, t("field")), plotCell(r.KRATICA_RGRMJ, t("cls")), plotCell(r.BROJ_GRMJ, t("num"))),
+        r.KRATICA_OGRMJ ? el("div", { class: "s", style: "margin-top:6px" }, `${t("section")}: ${r.KRATICA_OGRMJ}`) : null,
+        d && !d.exact ? el("div", { class: "note", style: "margin:10px 0 0" }, t("approx")) : null)),
+      cem ? el("div", { class: "irow" }, ic("pin"), el("div", {}, el("div", { class: "v" }, "Groblje " + cem[2]), el("div", { class: "s" }, cem[3]))) : null,
+      facts.length ? el("div", { class: "irow" }, ic("cal"), el("div", {}, facts.map(([k, v]) => el("div", {}, el("span", { class: "s" }, k + " "), el("span", { class: "v" }, v))))) : null,
+      d ? el("div", { class: "irow" }, ic("nav"), el("div", {},
+        el("div", { class: "s" }, t("openIn")),
+        el("div", { class: "links" },
+          el("a", { href: `https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=walking`, target: "_blank", rel: "noopener" }, "Google Maps"),
+          el("a", { href: `https://maps.apple.com/?daddr=${ll}&dirflg=w`, target: "_blank", rel: "noopener" }, "Apple Maps"),
+          el("a", { href: `https://waze.com/ul?ll=${ll}&navigate=yes`, target: "_blank", rel: "noopener" }, "Waze"),
+          el("button", { class: "btn", type: "button", onclick: async () => { try { await navigator.clipboard.writeText(`${d.lat}, ${d.lon}`); } catch {} toast(t("copiedC")); } }, ic("copy"), t("copy"))))) : null));
+  setSnap(1);
+  if (d) {
+    L.marker([d.lat, d.lon], { icon: flameIcon(d.exact), title: nameOf(r), keyboard: false }).addTo(layerGrave);
+    fitPoint(d.lat, d.lon, d.exact ? 70 : 900);
+  }
+}
+
+function closeGrave() {
+  stopNav(true);
+  if (history.state?.detail) { history.back(); return; }
+  backToList();
+}
+function backToList() {
+  S.grave = null; layerGrave.clearLayers(); layerRoute.clearLayers();
+  if (S.rows.length && S.key) { setMode("results"); layerCem.clearLayers(); renderResults(); pinResults(true); setSnap(1); writeHash(); }
+  else if (S.cem !== "%") showCemetery(S.cem);
+  else { renderHome(); writeHash(); }
+}
+
+async function shareGrave() {
+  const r = S.grave, data = { title: nameOf(r), text: `${nameOf(r)}, ${cemLabel(r.NAZIV_GROB)}, ${t("rowPlot")(r.KRATICA_PGRMJ, r.KRATICA_RGRMJ, r.BROJ_GRMJ)}`, url: location.href };
+  if (navigator.share) { try { await navigator.share(data); return; } catch (e) { if (e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(location.href); } catch {}
+  toast(t("shared"));
+}
+
+/* ---------- walking navigation ---------- */
+
+const R = 6371000, rad = x => x * Math.PI / 180;
+const hav = (a, b) => { const dl = rad(b[0] - a[0]), dn = rad(b[1] - a[1]); const h = Math.sin(dl / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1).replace(".", ",") + " km" : Math.max(5, Math.round(m / 5) * 5) + " m";
+
+// Nearest point of the route to p. Returns the distance off the route and the meters travelled along it.
+function project(p, coords, cum) {
+  const k = Math.cos(rad(p[0])), X = q => [(q[1] - p[1]) * k * 111320, (q[0] - p[0]) * 110540];
+  let best = { off: Infinity, along: 0 };
+  for (let i = 1; i < coords.length; i++) {
+    const [ax, ay] = X(coords[i - 1]), [bx, by] = X(coords[i]);
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const u = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    const off = Math.hypot(ax + u * dx, ay + u * dy);
+    if (off < best.off) best = { off, along: cum[i - 1] + u * (cum[i] - cum[i - 1]) };
+  }
+  return best;
+}
+
+const TURN = { left: ["left", -90], right: ["right", 90], "slight left": ["sleft", -45], "slight right": ["sright", 45], "sharp left": ["shleft", -135], "sharp right": ["shright", 135], straight: ["straight", 0], uturn: ["uturn", 180] };
+function stepInfo(s) {
+  const m = s.maneuver, name = s.name ? ` ${t("on")} ${s.name}` : "";
+  if (m.type === "depart") return { text: t("depart") + name, deg: 0 };
+  if (m.type === "arrive") return { text: t("arrive"), deg: 0, flag: true };
+  const [key, deg] = TURN[m.modifier] || TURN.straight, a = t(key);
+  return { text: a.charAt(0).toUpperCase() + a.slice(1) + name, deg };
+}
+
+const endButton = () => el("button", { class: "btn danger", type: "button", onclick: () => { stopNav(); if (S.grave) openGrave(S.grave, { push: false }); } }, t("end"));
+
+function startNav() {
+  if (!navigator.geolocation) { toast(t("locFail")); return; }
+  stopNav(true);
+  nav = { watch: null, route: null, pos: null, lastFetch: 0, fetching: false, follow: true, arrived: false, wake: null, ui: null };
+  setMode("nav");
+  $("#fab").classList.add("follow");
+  setNavBanner(t("locating"), "", 0);
+  nav.ui = { eta: el("b", {}, "…"), sub: el("span", {}, t("locating")), steps: el("ol", { class: "steps", hidden: true }),
+    toggle: el("button", { class: "btn ghost stepstoggle", type: "button", hidden: true, onclick: toggleSteps }) };
+  show(el("div", { class: "navcard" }, el("div", { class: "eta" }, nav.ui.eta, nav.ui.sub), endButton()), nav.ui.toggle, nav.ui.steps);
+  setSnap(0);
+  nav.watch = navigator.geolocation.watchPosition(onPos, e => failNav(e.code === 1 ? t("locDenied") : t("locFail")), { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
+  navigator.wakeLock?.request("screen").then(w => { if (nav) nav.wake = w; else w.release(); }).catch(() => {});
+}
+
+// The step list is hidden by default. The banner already shows the next turn, and a long list would cover the map.
+function toggleSteps() {
+  const u = nav.ui, open = u.steps.hidden;
+  u.steps.hidden = !open;
+  u.toggle.textContent = `${t(open ? "hideSteps" : "showSteps")} (${u.steps.children.length})`;
+  setSnap(open ? 1 : 0);
+}
+
+function failNav(msg) {
+  stopNav(true);
+  if (S.grave) openGrave(S.grave, { push: false });
+  setTimeout(() => toast(msg), 100);
+}
+
+function stopNav() {
+  if (nav) { if (nav.watch != null) navigator.geolocation.clearWatch(nav.watch); nav.wake?.release().catch(() => {}); }
+  nav = null;
+  $("#fab").classList.remove("follow");
+  if (meMarker) { meMarker.remove(); meMarker = null; }
+  layerRoute?.clearLayers();
+  if (S.mode === "nav") setMode("detail");
+}
+
+function setNavBanner(dist, text, deg, flag) {
+  $("#navarr").innerHTML = svg(flag ? "flag" : "arrow");
+  $("#navarr").style.transform = `rotate(${flag ? 0 : deg}deg)`;
+  $("#navd").textContent = dist; $("#navt").textContent = text;
+}
+
+async function onPos(p) {
+  if (!nav || !S.grave || nav.arrived) return;
+  const me = [p.coords.latitude, p.coords.longitude], d = destOf(S.grave), g = [d.lat, d.lon];
+  nav.pos = me;
+  if (!meMarker) meMarker = L.marker(me, { icon: meIcon(), zIndexOffset: 1000, keyboard: false }).addTo(map);
+  else meMarker.setLatLng(me);
+  if (nav.follow && nav.route) map.setView(me, Math.max(map.getZoom(), 18), { animate: true });
+
+  const straight = hav(me, g), cem = CEMETERIES[S.grave.NAZIV_GROB];
+  if (straight > 3000 && (!cem || hav(me, [cem[0], cem[1]]) > 3000)) { failNav(t("far")); return; }
+  if (straight < 12) { arrived(); return; }
+
+  let pr = nav.route ? project(me, nav.route.coords, nav.route.cum) : null;
+  if (!nav.fetching && (!pr || (pr.off > 40 && Date.now() - nav.lastFetch > 15000))) {
+    await fetchRoute(me, g);
+    if (!nav?.route) return;
+    pr = project(me, nav.route.coords, nav.route.cum);
+  }
+  if (pr) renderLive(pr);
+}
+
+function arrived() {
+  nav.arrived = true;
+  setNavBanner(t("arrived"), "", 0, true);
+  show(el("div", { class: "navcard" }, el("div", { class: "eta" }, el("b", {}, t("arrived"))),
+    el("button", { class: "btn primary", type: "button", onclick: () => { stopNav(); openGrave(S.grave, { push: false }); } }, t("done"))));
+  navigator.vibrate?.(200);
+}
+
+async function fetchRoute(from, to) {
+  nav.fetching = true; nav.lastFetch = Date.now();
+  try {
+    const d = await getJson(`${ROUTE_API}/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson&steps=true`);
+    if (!nav) return;
+    const rt = d.routes?.[0];
+    if (!rt) throw new Error("no route");
+    const coords = rt.geometry.coordinates.map(c => [c[1], c[0]]);
+    const cum = [0]; for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + hav(coords[i - 1], coords[i]));
+    let acc = 0;
+    const steps = rt.legs[0].steps.map(s => { const o = { ...stepInfo(s), dist: s.distance, start: acc }; acc += s.distance; return o; });
+    nav.route = { coords, cum, steps, dist: cum[cum.length - 1], speed: rt.distance / Math.max(1, rt.duration) };
+    nav.ui.toggle.textContent = `${t("showSteps")} (${steps.length})`;
+    nav.ui.toggle.hidden = false;
+    nav.ui.steps.replaceChildren(...steps.map(s => el("li", {}, el("span", {}, s.text), el("span", {}, s.dist > 0 ? fmtDist(s.dist) : ""))));
+    layerRoute.clearLayers();
+    L.polyline(coords, { color: "#fff", weight: 11, opacity: .95, lineCap: "round" }).addTo(layerRoute);
+    L.polyline(coords, { color: "#1a73e8", weight: 6, lineCap: "round" }).addTo(layerRoute);
+    L.polyline([coords[coords.length - 1], to], { color: "#1a73e8", weight: 3, dashArray: "2 8" }).addTo(layerRoute);
+    fit(L.latLngBounds([...coords, from, to]), 19);
+    nav.follow = false;
+    setTimeout(() => { if (nav) nav.follow = true; }, 3500);
+  } catch { failNav(t("routeFail")); }
+  finally { if (nav) nav.fetching = false; }
+}
+
+// Updates existing nodes in place, so a tap on "End" is never lost to a re-render.
+function renderLive(pr) {
+  const rt = nav.route, left = Math.max(0, rt.dist - pr.along);
+  let ni = rt.steps.findIndex((s, i) => i > 0 && s.start > pr.along + 6);
+  if (ni < 0) ni = rt.steps.length - 1;
+  const st = rt.steps[ni], toNext = Math.max(0, st.start - pr.along), now = toNext < 8;
+  setNavBanner(now ? st.text : fmtDist(toNext), now ? "" : st.text, st.deg, st.flag);
+  const secs = left / rt.speed;
+  nav.ui.eta.textContent = `${Math.max(1, Math.round(secs / 60))} ${t("min")}`;
+  nav.ui.sub.textContent = `${fmtDist(left)} ${t("toGrave")} · ${new Date(Date.now() + secs * 1000).toLocaleTimeString(lang === "hr" ? "hr-HR" : "en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  [...nav.ui.steps.children].forEach((li, i) => li.classList.toggle("now", i === ni));
+}
+
+$("#fab").addEventListener("click", () => {
+  if (nav) { nav.follow = true; $("#fab").classList.add("follow"); if (nav.pos) map.setView(nav.pos, Math.max(map.getZoom(), 18), { animate: true }); return; }
+  if (!navigator.geolocation) { toast(t("locFail")); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    const me = [p.coords.latitude, p.coords.longitude];
+    if (!meMarker) meMarker = L.marker(me, { icon: meIcon(), keyboard: false }).addTo(map);
+    else meMarker.setLatLng(me);
+    map.setView(me, Math.max(map.getZoom(), 16));
+  }, e => toast(e.code === 1 ? t("locDenied") : t("locFail")), { enableHighAccuracy: true, timeout: 15000 });
+});
+
+/* ---------- URL state ---------- */
+
+function writeHash(guid, push) {
+  const h = new URLSearchParams();
+  if (S.text) h.set("q", S.text);
+  if (S.cem !== "%") h.set("c", S.cem);
+  if (S.from) h.set("od", S.from);
+  if (S.to) h.set("do", S.to);
+  if (guid) h.set("g", guid);
+  const url = "#" + h.toString();
+  if (url === location.hash || (!location.hash && url === "#")) return;
+  if (guid && push) history.pushState({ detail: 1 }, "", url);
+  else history.replaceState(guid ? { detail: 1 } : null, "", url);
+}
+
+async function applyHash() {
+  stopNav();
+  const h = new URLSearchParams(location.hash.slice(1));
+  $("#q").value = h.get("q") || ""; $("#cem").value = h.get("c") || "%";
+  $("#yfrom").value = h.get("od") || ""; $("#yto").value = h.get("do") || "";
+  if (![...$("#cem").options].some(o => o.value === $("#cem").value)) $("#cem").value = "%";
+  S.text = $("#q").value.trim(); S.cem = $("#cem").value; S.from = $("#yfrom").value.trim(); S.to = $("#yto").value.trim();
+  syncUi();
+  const guid = h.get("g"), hasQuery = S.text.length >= 2;
+  const key = JSON.stringify([S.text, S.cem, S.from, S.to]);
+  if (hasQuery && S.key !== key) await doSearch();
+  if (guid && /^[0-9a-f-]{36}$/i.test(guid)) {
+    let r = S.rows.find(x => x.SYNC_GUID === guid);
+    if (!r) { try { r = await loadGrave(guid); } catch {} }
+    if (r) { openGrave(r, { push: false }); writeHash(guid, false); return; }
+  }
+  if (hasQuery) { setMode("results"); S.grave = null; layerGrave.clearLayers(); layerRoute.clearLayers(); layerCem.clearLayers(); renderResults(); pinResults(true); setSnap(1); }
+  else if (S.cem !== "%") showCemetery(S.cem);
+  else renderHome();
+}
+
+/* ---------- search bar wiring ---------- */
+
+function updateChips() {
+  const c = $("#cem"), y = $("#yearchip"), f = $("#yfrom").value.trim(), to = $("#yto").value.trim();
+  c.classList.toggle("on", c.value !== "%");
+  y.textContent = f || to ? `${f || "…"} – ${to || "…"}` : t("year");
+  y.classList.toggle("on", !!(f || to));
+}
+function syncUi() { $("#clear").hidden = !$("#q").value; updateChips(); }
+
+function fillCemeteries(extra = []) {
+  const sel = $("#cem"), cur = sel.value;
+  const others = extra.filter(n => n !== "%" && !CEMETERIES[n]).sort((a, b) => a.localeCompare(b, "hr"));
+  sel.replaceChildren(el("option", { value: "%" }, t("allCem")), ...[...Object.keys(CEMETERIES), ...others].map(n => el("option", { value: n }, cemLabel(n))));
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : "%";
+}
+
+$("#q").addEventListener("input", () => { syncUi(); clearTimeout(searchTimer); searchTimer = setTimeout(doSearch, 450); });
+$("#sf").addEventListener("submit", e => { e.preventDefault(); clearTimeout(searchTimer); $("#q").blur(); doSearch(); });
+$("#clear").addEventListener("click", () => { $("#q").value = ""; syncUi(); $("#q").focus(); clearTimeout(searchTimer); doSearch(); });
+$("#cem").addEventListener("change", () => selectCemetery($("#cem").value));
+$("#yearchip").addEventListener("click", () => { $("#yearpop").hidden = !$("#yearpop").hidden; if (!$("#yearpop").hidden) $("#yfrom").focus(); });
+$("#yapply").addEventListener("click", () => { $("#yearpop").hidden = true; updateChips(); doSearch(); });
+$("#yclear").addEventListener("click", () => { $("#yfrom").value = ""; $("#yto").value = ""; $("#yearpop").hidden = true; updateChips(); doSearch(); });
+for (const id of ["#yfrom", "#yto"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") $("#yapply").click(); });
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  for (const n of document.querySelectorAll("[data-i]")) n.textContent = t(n.dataset.i);
+  for (const n of document.querySelectorAll("[data-ic]")) n.innerHTML = svg(n.dataset.ic);
+  $("#q").placeholder = t("ph"); $("#q").setAttribute("aria-label", t("ph"));
+  $("#lang").textContent = lang === "hr" ? "EN" : "HR";
+  $("#fab").setAttribute("aria-label", t("me")); $("#clear").setAttribute("aria-label", t("clear"));
+  document.title = lang === "hr" ? "Pronađi grob | Zagrebačka groblja" : "Find a grave | Zagreb cemeteries";
+  fillCemeteries([...$("#cem").options].map(o => o.value)); updateChips();
+}
+$("#lang").addEventListener("click", () => {
+  lang = lang === "hr" ? "en" : "hr";
+  try { localStorage.setItem("lang", lang); } catch {}
+  applyLang();
+  if (S.mode === "detail" && S.grave) openGrave(S.grave, { push: false });
+  else if (S.mode === "results") renderResults();
+  else if (S.mode === "cemetery") showCemetery(S.cem);
+  else if (S.mode === "home") renderHome();
+});
+
+/* ---------- boot ---------- */
+
+initMap();
+applyLang();
+setSnap(0);
+addEventListener("popstate", applyHash);
+getJson(`${API}/V_WEB_GROBLJA?$orderby=NAZIV_GROB`)
+  .then(d => fillCemeteries(d.value.map(g => g.NAZIV_GROB)))
+  .catch(() => {})
+  .finally(applyHash);
+</script>
+</body>
+</html>
